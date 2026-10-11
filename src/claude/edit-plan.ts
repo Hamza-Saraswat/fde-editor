@@ -23,7 +23,17 @@ export type PlanEditResult = { plan: EditPlan; edit: Edit; warnings: string[]; c
 /** JSON schema handed to `claude --json-schema` (also written to schemas/edit-plan.json). */
 export const editPlanJsonSchema = () => z.toJSONSchema(EditPlanSchema) as Record<string, unknown>;
 
-export async function planEdit(slug: string, opts: PlanEditOptions = {}): Promise<PlanEditResult> {
+export type PreparedPlan = {
+  slug: string;
+  inputFile: string;
+  prompt: string; // the user prompt a planning run receives
+  systemPromptFile: string; // appended to Claude's system prompt
+  ctx: { config: Config; project: Project; script: ScriptDoc; transcript: Transcript; candidates: Candidates; previous: Edit | null };
+  warnings: string[];
+};
+
+/** Load the project and write runs/plan-input.json: everything a planner needs, nothing else. */
+export async function preparePlan(slug: string): Promise<PreparedPlan> {
   const paths = projectPaths(slug);
   const warnings: string[] = [];
   const [config, project, script, transcript, candidates, previous] = await Promise.all([
@@ -37,32 +47,50 @@ export async function planEdit(slug: string, opts: PlanEditOptions = {}): Promis
       return null;
     }),
   ]);
-
   const inputFile = join(paths.runsDir, "plan-input.json");
   await mkdir(paths.runsDir, { recursive: true });
   await writeFile(inputFile, serialize(buildPlanInput({ project, script, transcript, candidates, config })));
-
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const basePrompt = [
+  const prompt = [
     `Plan the edit for project ${slug}.`,
     `Read ${inputFile} completely. It is long: keep reading with offset/limit until you have seen every line.`,
     "Then decide takes, ad-libs, word cuts, filler gaps and graphics cues as your instructions describe,",
     "and return the whole plan as structured output matching the JSON schema. Use only ids that appear in the input file.",
   ].join(" ");
+  return {
+    slug, inputFile, prompt, systemPromptFile: join(PROMPTS_DIR, "edit-plan.md"),
+    ctx: { config, project, script, transcript, candidates, previous }, warnings,
+  };
+}
 
+/** Validate a planner's answer; on success write plan.json + edit.json. Returns the zod error text on failure. */
+export async function applyPlan(prep: PreparedPlan, structured: unknown): Promise<PlanEditResult | { error: string }> {
+  const parsed = EditPlanSchema.safeParse(structured);
+  if (!parsed.success) return { error: structured == null ? "No JSON plan was found in your reply." : z.prettifyError(parsed.error).slice(0, 4000) };
+  const paths = projectPaths(prep.slug);
+  const { script, transcript, candidates, project, previous } = prep.ctx;
+  const plan = await writeJson(paths.plan, EditPlanSchema, parsed.data);
+  const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous: previous ?? undefined });
+  const edit = await writeJson(paths.edit, EditSchema, compiled.edit);
+  return { plan, edit, warnings: [...prep.warnings, ...compiled.warnings] };
+}
+
+export async function planEdit(slug: string, opts: PlanEditOptions = {}): Promise<PlanEditResult> {
+  const paths = projectPaths(slug);
+  const prep = await preparePlan(slug);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   let costUsd = 0;
-  let plan: EditPlan | null = null;
   let lastError = "";
-  for (let attempt = 1; attempt <= 2 && !plan; attempt++) {
-    const prompt = attempt === 1 ? basePrompt
-      : `${basePrompt}\n\nYour previous answer was rejected by the validator:\n${lastError}\nFix these problems and return the complete plan again.`;
+  const denials: string[] = [];
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const prompt = attempt === 1 ? prep.prompt
+      : `${prep.prompt}\n\nYour previous answer was rejected by the validator:\n${lastError}\nFix these problems and return the complete plan again.`;
     const res = await runClaude({
       prompt,
-      appendSystemPromptFile: join(PROMPTS_DIR, "edit-plan.md"),
+      appendSystemPromptFile: prep.systemPromptFile,
       jsonSchema: editPlanJsonSchema(),
       allowedTools: ["Read"],
-      model: config.claude.model,
-      maxTurns: config.claude.maxTurns,
+      model: prep.ctx.config.claude.model,
+      maxTurns: prep.ctx.config.claude.maxTurns,
       cwd: REPO_ROOT,
       addDirs: [paths.root],
       signal: opts.signal,
@@ -71,17 +99,12 @@ export async function planEdit(slug: string, opts: PlanEditOptions = {}): Promis
       bin: opts.bin,
     });
     costUsd += res.costUsd ?? 0;
-    if (res.permissionDenials.length) warnings.push(`Claude was denied ${res.permissionDenials.length} tool call(s) during planning`);
-    const parsed = EditPlanSchema.safeParse(res.structured);
-    if (parsed.success) plan = parsed.data;
-    else lastError = res.structured == null ? "No JSON plan was found in your reply." : z.prettifyError(parsed.error).slice(0, 4000);
+    if (res.permissionDenials.length) denials.push(`Claude was denied ${res.permissionDenials.length} tool call(s) during planning`);
+    const applied = await applyPlan(prep, res.structured);
+    if (!("error" in applied)) return { ...applied, warnings: [...denials, ...applied.warnings], costUsd: costUsd || undefined };
+    lastError = applied.error;
   }
-  if (!plan) throw new Error(`Claude's edit plan failed validation twice: ${lastError}`);
-
-  await writeJson(paths.plan, EditPlanSchema, plan);
-  const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous });
-  const edit = await writeJson(paths.edit, EditSchema, compiled.edit);
-  return { plan, edit, warnings: [...warnings, ...compiled.warnings], costUsd: costUsd || undefined };
+  throw new Error(`Claude's edit plan failed validation twice: ${lastError}`);
 }
 
 // ---------- the compact input file ----------

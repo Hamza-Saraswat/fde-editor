@@ -55,31 +55,65 @@ export async function finalTranscriptLines(slug: string): Promise<{ lines: Final
   };
 }
 
-export async function planXClips(slug: string, opts: { count?: number; signal?: AbortSignal; onEvent?: (e: ClaudeEvent) => void } = {}): Promise<XClipPlan> {
+export type PreparedXClips = {
+  slug: string;
+  count: number;
+  inputFile: string;
+  prompt: string;
+  systemPromptFile: string;
+  jsonSchema: Record<string, unknown>;
+  bounds: { lo: number; hi: number };
+};
+
+/** Write runs/xclips-input.txt (the final video's transcript with final-video timestamps). */
+export async function prepareXClips(slug: string, count = 3): Promise<PreparedXClips> {
   const paths = projectPaths(slug);
-  const count = Math.min(3, Math.max(1, opts.count ?? 3));
+  const n = Math.min(3, Math.max(1, count));
   const { lines, duration, introSeconds, chapters } = await finalTranscriptLines(slug);
   const project = await loadProject(slug);
-  const config = await loadConfig();
   await mkdir(paths.runsDir, { recursive: true });
   const inputFile = join(paths.runsDir, "xclips-input.txt");
   const fmt = (t: number) => t.toFixed(1);
   await writeFile(inputFile, [
     `VIDEO: ${project.title}`,
     `FINAL DURATION: ${fmt(duration)} s (intro ends at ${fmt(introSeconds)} s; the last ~12 s are the end card)`,
-    `CLIPS WANTED: ${count}`,
+    `CLIPS WANTED: ${n}`,
     "CHAPTERS:",
     ...chapters.map((c) => `  ${fmt(c.start)} ${c.title}`),
     "TRANSCRIPT (final-video seconds):",
     ...lines.map((l) => `[${fmt(l.start)}-${fmt(l.end)}] ${l.text}`),
   ].join("\n") + "\n");
+  const jsonSchema = z.toJSONSchema(XClipPlanSchema) as Record<string, unknown>;
+  delete jsonSchema.$schema;
+  return {
+    slug, count: n, inputFile, jsonSchema,
+    prompt: `Pick ${n} clips for X from the video in ${inputFile}. Read it, then return the JSON.`,
+    systemPromptFile: join(PROMPTS_DIR, "x-clips.md"),
+    bounds: { lo: introSeconds, hi: Math.max(introSeconds, duration - 12) },
+  };
+}
 
-  const schema = z.toJSONSchema(XClipPlanSchema) as Record<string, unknown>;
-  delete schema.$schema;
+/** Validate a picker's answer, clamp it into the spoken part of the video, write xclips.json. */
+export async function applyXClips(prep: PreparedXClips, structured: unknown): Promise<XClipPlan> {
+  const plan = XClipPlanSchema.parse(structured);
+  const { lo, hi } = prep.bounds;
+  plan.clips = plan.clips
+    .map((c) => ({ ...c, start: Math.max(lo, Math.min(c.start, hi)), end: Math.max(lo, Math.min(c.end, hi)) }))
+    .filter((c) => c.end - c.start >= 10)
+    .slice(0, prep.count);
+  if (!plan.clips.length) throw new Error("No usable clips (each must be at least 10 s of the spoken video)");
+  await writeFile(projectPaths(prep.slug).xclips, JSON.stringify(plan, null, 2) + "\n");
+  return plan;
+}
+
+export async function planXClips(slug: string, opts: { count?: number; signal?: AbortSignal; onEvent?: (e: ClaudeEvent) => void } = {}): Promise<XClipPlan> {
+  const paths = projectPaths(slug);
+  const prep = await prepareXClips(slug, opts.count);
+  const config = await loadConfig();
   const res = await runClaude({
-    prompt: `Pick ${count} clips for X from the video in ${inputFile}. Read it, then return the JSON.`,
-    appendSystemPromptFile: join(PROMPTS_DIR, "x-clips.md"),
-    jsonSchema: schema,
+    prompt: prep.prompt,
+    appendSystemPromptFile: prep.systemPromptFile,
+    jsonSchema: prep.jsonSchema,
     allowedTools: ["Read"],
     model: config.claude.model,
     maxTurns: 6,
@@ -89,14 +123,5 @@ export async function planXClips(slug: string, opts: { count?: number; signal?: 
     logFile: join(paths.runsDir, `xclips-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`),
     onEvent: opts.onEvent,
   });
-  const plan = XClipPlanSchema.parse(res.structured);
-  // Clamp into the spoken part of the video and to a sane length.
-  const lo = introSeconds, hi = Math.max(lo, duration - 12);
-  plan.clips = plan.clips
-    .map((c) => ({ ...c, start: Math.max(lo, Math.min(c.start, hi)), end: Math.max(lo, Math.min(c.end, hi)) }))
-    .filter((c) => c.end - c.start >= 10)
-    .slice(0, count);
-  if (!plan.clips.length) throw new Error("Claude returned no usable clips");
-  await writeFile(paths.xclips, JSON.stringify(plan, null, 2) + "\n");
-  return plan;
+  return applyXClips(prep, res.structured);
 }

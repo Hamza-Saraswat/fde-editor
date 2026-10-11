@@ -148,9 +148,22 @@ export async function graphicStatuses(slug: string): Promise<Record<string, Grap
   return out;
 }
 
-/** Build (or rebuild) the graphic for one overlay cue. Writes graphics/<cueId>/{index.html,still.png,render.mov,preview.webm,status.json}. */
-export async function buildGraphic(slug: string, cueId: string, opts: BuildGraphicOptions = {}): Promise<GraphicStatus> {
-  const progress = opts.onProgress ?? (() => {});
+export type PreparedGraphic = {
+  slug: string;
+  cueId: string;
+  dir: string;
+  durationSec: number;
+  side: "left" | "right";
+  layout: Overlay["layout"];
+  fingerprint: string;
+  prompt: string; // the user prompt a graphics run receives
+  systemPromptFile: string;
+  allowedTools: string[];
+  upToDate: GraphicStatus | null; // set when nothing needs building (and not forced)
+};
+
+/** Stage the brand kit + assets and write input.json for one cue. Nothing calls Claude here. */
+export async function prepareGraphic(slug: string, cueId: string, opts: Pick<BuildGraphicOptions, "note" | "force"> = {}): Promise<PreparedGraphic> {
   const ctx = await loadCtx(slug);
   const paths = projectPaths(slug);
   const ov = ctx.edit.overlays.find((o) => o.cueId === cueId);
@@ -158,113 +171,137 @@ export async function buildGraphic(slug: string, cueId: string, opts: BuildGraph
   const place = placement(ctx, ov);
   if (!place) throw new Error(`Overlay ${cueId} is disabled or has no time in the cut`);
   const fp = fingerprint(ctx, ov, place.durationSec);
-  const prev = await readStored(slug, cueId);
-  if (!opts.force && !opts.note && prev?.state === "ready" && prev.fingerprint === fp && existsSync(paths.graphicMov(cueId))) {
-    return toPublic(slug, cueId, prev, fp, ov, ctx.project.speakerSide);
-  }
-
-  const dir = paths.graphic(cueId);
   const side = overlaySide(ov, ctx.project.speakerSide);
-  const set = (state: GraphicState, message: string, extra: Partial<StoredStatus> = {}) =>
-    writeStored(slug, cueId, { state, message, updatedAt: new Date().toISOString(), durationSec: place.durationSec, side, layout: ov.layout, ...extra });
-
-  try {
-    await set("building", "Claude is designing the graphic");
-    progress(0.02, `${cueId}: preparing`);
-    await stageKit(dir);
-
-    // Screenshots for B-roll: copy into the graphic folder (HyperFrames serves only that folder).
-    const assets = [];
-    for (const a of overlayAssets(ctx.project, ov)) {
-      const src = join(paths.root, a.file);
-      const name = `${a.id}${extname(a.file)}`;
-      await mkdir(join(dir, "assets"), { recursive: true });
-      await copyFile(src, join(dir, "assets", name));
-      assets.push({ file: `assets/${name}`, width: a.width, height: a.height, crop: a.crop ?? null, blur: a.blur, highlight: a.highlight });
-    }
-
-    const script = await readJsonIfExists(paths.script, ScriptDocSchema);
-    const cue = script?.cues.find((c) => c.id === cueId);
-    const hasPrevious = existsSync(join(dir, "index.html"));
-    const input = {
-      cueId,
-      cue: cue ? { kind: cue.kind, text: cue.text, flags: cue.flags, optional: cue.optional } : null,
-      brief: ov.brief,
-      note: opts.note ?? null,
-      durationSec: place.durationSec,
-      fps: ctx.fps,
-      canvas: { width: ctx.width, height: ctx.height },
-      speakerSide: ctx.project.speakerSide,
-      layout: ov.layout,
-      side,
-      zones: zonesFor(ctx.project.speakerSide, ov.layout, side),
-      words: wordsInWindow(ctx, place.start, place.end),
-      assets,
-      previous: hasPrevious ? "index.html" : null,
-      commands: [`${HYPERFRAMES_BIN} lint ${dir}`, `${HYPERFRAMES_BIN} check ${dir}`],
-      brandSpec: join(BRAND_DIR, "BRAND.md"),
-      templatesDir: join(BRAND_DIR, "templates"),
-    };
-    await writeFile(join(dir, "input.json"), JSON.stringify(input, null, 2) + "\n");
-
-    const allowedTools = [
+  const dir = paths.graphic(cueId);
+  const base = {
+    slug, cueId, dir, durationSec: place.durationSec, side, layout: ov.layout, fingerprint: fp,
+    systemPromptFile: join(PROMPTS_DIR, "graphic.md"),
+    allowedTools: [
       "Read", "Glob", "Grep", "Skill",
       `Write(/${dir}/index.html)`, `Edit(/${dir}/index.html)`,
       `Bash(${HYPERFRAMES_BIN} lint:*)`, `Bash(${HYPERFRAMES_BIN} check:*)`,
-    ];
+    ],
+  };
+  const prev = await readStored(slug, cueId);
+  if (!opts.force && !opts.note && prev?.state === "ready" && prev.fingerprint === fp && existsSync(paths.graphicMov(cueId))) {
+    return { ...base, prompt: "", upToDate: toPublic(slug, cueId, prev, fp, ov, ctx.project.speakerSide) };
+  }
+
+  await writeStored(slug, cueId, { state: "building", message: "Claude is designing the graphic", updatedAt: new Date().toISOString(), durationSec: place.durationSec, side, layout: ov.layout });
+  await stageKit(dir);
+
+  // Screenshots for B-roll: copy into the graphic folder (HyperFrames serves only that folder).
+  const assets = [];
+  for (const a of overlayAssets(ctx.project, ov)) {
+    const name = `${a.id}${extname(a.file)}`;
+    await mkdir(join(dir, "assets"), { recursive: true });
+    await copyFile(join(paths.root, a.file), join(dir, "assets", name));
+    assets.push({ file: `assets/${name}`, width: a.width, height: a.height, crop: a.crop ?? null, blur: a.blur, highlight: a.highlight });
+  }
+
+  const script = await readJsonIfExists(paths.script, ScriptDocSchema);
+  const cue = script?.cues.find((c) => c.id === cueId);
+  const input = {
+    cueId,
+    cue: cue ? { kind: cue.kind, text: cue.text, flags: cue.flags, optional: cue.optional } : null,
+    brief: ov.brief,
+    note: opts.note ?? null,
+    durationSec: place.durationSec,
+    fps: ctx.fps,
+    canvas: { width: ctx.width, height: ctx.height },
+    speakerSide: ctx.project.speakerSide,
+    layout: ov.layout,
+    side,
+    zones: zonesFor(ctx.project.speakerSide, ov.layout, side),
+    words: wordsInWindow(ctx, place.start, place.end),
+    assets,
+    previous: existsSync(join(dir, "index.html")) ? "index.html" : null,
+    commands: [`${HYPERFRAMES_BIN} lint ${dir}`, `${HYPERFRAMES_BIN} check ${dir}`],
+    brandSpec: join(BRAND_DIR, "BRAND.md"),
+    templatesDir: join(BRAND_DIR, "templates"),
+  };
+  await writeFile(join(dir, "input.json"), JSON.stringify(input, null, 2) + "\n");
+  const prompt = `Build the motion graphic for cue ${cueId}. Your graphic folder is ${dir}. Read ${join(dir, "input.json")} first, then ${input.brandSpec}, then the closest template in ${input.templatesDir}. Write ${join(dir, "index.html")} and validate it with the two commands in input.json.`;
+  return { ...base, prompt, upToDate: null };
+}
+
+/** Server-side checks on whatever Claude wrote: lint + check + the declared duration. */
+export async function validateGraphic(prep: PreparedGraphic, signal?: AbortSignal): Promise<{ ok: boolean; output: string }> {
+  const file = join(prep.dir, "index.html");
+  if (!existsSync(file)) return { ok: false, output: "index.html was not written" };
+  const check = await checkComposition(prep.dir, { signal });
+  if (!check.ok) return { ok: false, output: check.output };
+  const html = await readFile(file, "utf8");
+  const declared = Number(/data-composition-id="main"[^>]*data-duration="([\d.]+)"|data-duration="([\d.]+)"[^>]*data-composition-id="main"/.exec(html)?.slice(1).find(Boolean) ?? NaN);
+  if (!Number.isFinite(declared) || Math.abs(declared - prep.durationSec) > 1 / 30 + 1e-6) {
+    return { ok: false, output: `The root declares data-duration=${declared}; it must be ${prep.durationSec.toFixed(2)} (input.json durationSec).` };
+  }
+  return { ok: true, output: check.output };
+}
+
+/** Snapshot, render ProRes 4444 + VP9-alpha preview, verify the length, mark ready. */
+export async function finishGraphic(prep: PreparedGraphic, opts: Pick<BuildGraphicOptions, "signal" | "onProgress"> = {}): Promise<GraphicStatus> {
+  const progress = opts.onProgress ?? (() => {});
+  const paths = projectPaths(prep.slug);
+  const { cueId, dir } = prep;
+  const set = (state: GraphicState, message: string, extra: Partial<StoredStatus> = {}) =>
+    writeStored(prep.slug, cueId, { state, message, updatedAt: new Date().toISOString(), durationSec: prep.durationSec, side: prep.side, layout: prep.layout, ...extra });
+  await set("rendering", "Rendering the transparent overlay");
+  progress(0.55, `${cueId}: snapshot`);
+  await snapshotComposition(dir, Math.min(prep.durationSec - 0.5, Math.max(0.8, prep.durationSec * 0.6)), paths.graphicStill(cueId), { signal: opts.signal });
+  progress(0.6, `${cueId}: rendering`);
+  await renderComposition(dir, paths.graphicMov(cueId), {
+    format: "mov", fps: 30, signal: opts.signal,
+    onProgress: (f) => progress(0.6 + f * 0.3, `${cueId}: rendering ${Math.round(f * 100)}%`),
+  });
+  const got = await mediaDuration(paths.graphicMov(cueId));
+  if (Math.abs(got - prep.durationSec) > 2 / 30) throw new Error(`Rendered ${got.toFixed(2)} s, expected ${prep.durationSec.toFixed(2)} s`);
+  progress(0.92, `${cueId}: preview`);
+  await movToPreviewWebm(paths.graphicMov(cueId), paths.graphicWebm(cueId), { signal: opts.signal });
+  const where = prep.layout === "split" ? "both sides" : prep.layout === "full" ? "full frame" : `${prep.side} side`;
+  await set("ready", `Built for ${prep.durationSec.toFixed(2)} s, ${where}`, { fingerprint: prep.fingerprint });
+  progress(1, `${cueId}: ready`);
+  const ctx = await loadCtx(prep.slug);
+  const ov = ctx.edit.overlays.find((o) => o.cueId === cueId);
+  return toPublic(prep.slug, cueId, await readStored(prep.slug, cueId), prep.fingerprint, ov, ctx.project.speakerSide);
+}
+
+/** Build (or rebuild) the graphic for one overlay cue: prepare → Claude writes index.html → validate (one fix-up round) → render. */
+export async function buildGraphic(slug: string, cueId: string, opts: BuildGraphicOptions = {}): Promise<GraphicStatus> {
+  const progress = opts.onProgress ?? (() => {});
+  progress(0.02, `${cueId}: preparing`);
+  const prep = await prepareGraphic(slug, cueId, opts);
+  if (prep.upToDate) return prep.upToDate;
+  const paths = projectPaths(slug);
+  try {
     const config = await loadConfig();
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const runClaudeOnce = (extra: string) =>
       runClaude({
-        prompt: `Build the motion graphic for cue ${cueId}. Your graphic folder is ${dir}. Read ${join(dir, "input.json")} first, then ${input.brandSpec}, then the closest template in ${input.templatesDir}. Write ${join(dir, "index.html")} and validate it with the two commands in input.json.${extra}`,
-        appendSystemPromptFile: join(PROMPTS_DIR, "graphic.md"),
-        allowedTools,
+        prompt: prep.prompt + extra,
+        appendSystemPromptFile: prep.systemPromptFile,
+        allowedTools: prep.allowedTools,
         model: config.claude.model,
         maxTurns: 30,
         cwd: REPO_ROOT,
-        addDirs: [dir],
+        addDirs: [prep.dir],
         env: { HYPERFRAMES_NO_TELEMETRY: "1" },
         signal: opts.signal,
         logFile: join(paths.runsDir, `graphic-${cueId}-${stamp}.jsonl`),
         onEvent: opts.onEvent,
       });
-
     progress(0.05, `${cueId}: Claude is designing`);
     await runClaudeOnce("");
-    if (!existsSync(join(dir, "index.html"))) throw new Error("Claude did not write index.html");
-
-    let check = await checkComposition(dir, { signal: opts.signal });
-    if (!check.ok) {
+    let v = await validateGraphic(prep, opts.signal);
+    if (!v.ok) {
       progress(0.45, `${cueId}: fixing validation errors`);
-      await runClaudeOnce(`\n\nThe last version failed validation. Fix these errors and nothing else:\n${check.output.slice(-3000)}`);
-      check = await checkComposition(dir, { signal: opts.signal });
-      if (!check.ok) throw new Error(`HyperFrames validation failed:\n${check.output.slice(-1500)}`);
+      await runClaudeOnce(`\n\nThe last version failed validation. Fix these errors and nothing else:\n${v.output.slice(-3000)}`);
+      v = await validateGraphic(prep, opts.signal);
+      if (!v.ok) throw new Error(`HyperFrames validation failed:\n${v.output.slice(-1500)}`);
     }
-    const html = await readFile(join(dir, "index.html"), "utf8");
-    const declared = Number(/data-composition-id="main"[^>]*data-duration="([\d.]+)"|data-duration="([\d.]+)"[^>]*data-composition-id="main"/.exec(html)?.slice(1).find(Boolean) ?? NaN);
-    if (!Number.isFinite(declared) || Math.abs(declared - place.durationSec) > 1 / ctx.fps + 1e-6) {
-      throw new Error(`Graphic declares data-duration=${declared}, expected ${place.durationSec.toFixed(2)}`);
-    }
-
-    await set("rendering", "Rendering the transparent overlay");
-    progress(0.55, `${cueId}: snapshot`);
-    await snapshotComposition(dir, Math.min(place.durationSec - 0.5, Math.max(0.8, place.durationSec * 0.6)), paths.graphicStill(cueId), { signal: opts.signal });
-    progress(0.6, `${cueId}: rendering`);
-    await renderComposition(dir, paths.graphicMov(cueId), {
-      format: "mov", fps: ctx.fps, signal: opts.signal,
-      onProgress: (f) => progress(0.6 + f * 0.3, `${cueId}: rendering ${Math.round(f * 100)}%`),
-    });
-    const got = await mediaDuration(paths.graphicMov(cueId));
-    if (Math.abs(got - place.durationSec) > 2 / ctx.fps) throw new Error(`Rendered ${got.toFixed(2)} s, expected ${place.durationSec.toFixed(2)} s`);
-    progress(0.92, `${cueId}: preview`);
-    await movToPreviewWebm(paths.graphicMov(cueId), paths.graphicWebm(cueId), { signal: opts.signal });
-
-    await set("ready", `Built for ${place.durationSec.toFixed(2)} s on the ${ov.layout === "split" ? "both sides" : side} side`, { fingerprint: fp });
-    progress(1, `${cueId}: ready`);
+    return await finishGraphic(prep, opts);
   } catch (e) {
-    const msg = (e as Error).message.slice(0, 800);
-    await set("error", msg);
+    await writeStored(slug, cueId, { state: "error", message: (e as Error).message.slice(0, 800), updatedAt: new Date().toISOString(), durationSec: prep.durationSec, side: prep.side, layout: prep.layout });
     throw e;
   }
-  return toPublic(slug, cueId, await readStored(slug, cueId), fp, ov, ctx.project.speakerSide);
 }
