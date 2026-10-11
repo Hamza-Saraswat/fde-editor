@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- TEMPLATE screenshot — B-roll: a screenshot pops in on the open side with crop, blur and highlight boxes.
+     All boxes are normalized 0–1 rects of the ORIGINAL image ({x,y,w,h}) — exactly what the UI saves on the
+     asset (crop, blur[], highlight[]). The small layout script below turns them into pixels once at load
+     (deterministic). Framing: speaker LEFT third → zone "right-wide".
+     Beats: 0.00 shot in · 1.20 highlight 1 draws · 2.60 highlight 2 · exit at end.
+     RULE: anything that identifies a company/recruiter/person (header, location, names) must be CROPPED
+     out or covered with a blur box — never shown. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, height=1440" />
+  <link rel="stylesheet" href="kit/tokens.css" />
+  <link rel="stylesheet" href="kit/components.css" />
+  <script src="kit/gsap.min.js"></script>
+</head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="2560" data-height="1440">
+    <div id="zone" class="clip fn-zone" data-zone="right-wide" data-start="0" data-duration="7" data-track-index="1">
+      <div class="fn-shot" id="shot">
+        <div class="viewport" id="vp"
+             data-src="assets/sample-posting.png" data-img-w="1042" data-img-h="700"
+             data-crop='{"x":0.03,"y":0.143,"w":0.94,"h":0.83}'
+             data-blur='[{"x":0.06,"y":0.37,"w":0.79,"h":0.075}]'
+             data-highlight='[{"x":0.1,"y":0.562,"w":0.84,"h":0.058},{"x":0.1,"y":0.726,"w":0.66,"h":0.058}]'>
+        </div>
+        <div class="fn-label caption">Job post · type 1</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Layout: fit the CROP into the zone width, place blur/highlight boxes relative to the crop.
+    (function layoutShot() {
+      const vp = document.getElementById("vp");
+      const W = 1260 - 36; // zone width minus .fn-shot padding
+      const imgW = +vp.dataset.imgW, imgH = +vp.dataset.imgH;
+      const crop = JSON.parse(vp.dataset.crop || '{"x":0,"y":0,"w":1,"h":1}');
+      const cropPxW = crop.w * imgW, cropPxH = crop.h * imgH;
+      const scale = W / cropPxW;
+      const H = Math.min(cropPxH * scale, 1080);
+      vp.style.width = W + "px"; vp.style.height = H + "px";
+      const img = document.createElement("img");
+      img.src = vp.dataset.src; img.alt = "";
+      img.style.width = imgW * scale + "px"; img.style.height = imgH * scale + "px";
+      img.style.left = -crop.x * imgW * scale + "px"; img.style.top = -crop.y * imgH * scale + "px";
+      vp.appendChild(img);
+      const place = (r, cls, i) => {
+        const el = document.createElement("div");
+        el.className = cls; el.id = cls + i;
+        el.style.left = (r.x - crop.x) * imgW * scale + "px"; el.style.top = (r.y - crop.y) * imgH * scale + "px";
+        el.style.width = r.w * imgW * scale + "px"; el.style.height = r.h * imgH * scale + "px";
+        vp.appendChild(el);
+      };
+      JSON.parse(vp.dataset.blur || "[]").forEach((r, i) => place(r, "blur", i));
+      JSON.parse(vp.dataset.highlight || "[]").forEach((r, i) => place(r, "hl", i));
+    })();
+
+    window.__timelines = window.__timelines || {};
+    const D = 7;
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#shot", { opacity: 0, x: 80, scale: 0.98 }, { opacity: 1, x: 0, scale: 1, duration: 0.5, ease: "power3.out" }, 0)
+      .fromTo("#hl0", { opacity: 0, scaleX: 0, transformOrigin: "0% 50%" }, { opacity: 1, scaleX: 1, duration: 0.4, ease: "power2.out" }, 1.2)
+      .fromTo("#hl1", { opacity: 0, scaleX: 0, transformOrigin: "0% 50%" }, { opacity: 1, scaleX: 1, duration: 0.4, ease: "power2.out" }, 2.6)
+      .to("#shot", { opacity: 0, x: 40, duration: 0.35, ease: "power2.in" }, D - 0.35);
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+</html>

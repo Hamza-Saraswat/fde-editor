@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- TEMPLATE checklist — builds item by item as each skill is spoken, then holds for the section.
+     Framing: speaker LEFT third → zone "right-wide". Each item appears on its word; the tick draws 0.3 s later.
+     Beats: 0.0 card · 1.2 item 1 · 4.0 item 2 · 7.5 item 3 · 11.0 item 4 · hold · exit at end. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, height=1440" />
+  <link rel="stylesheet" href="kit/tokens.css" />
+  <link rel="stylesheet" href="kit/components.css" />
+  <script src="kit/gsap.min.js"></script>
+</head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="16" data-width="2560" data-height="1440">
+    <div id="zone" class="clip fn-zone" data-zone="right-wide" data-start="0" data-duration="16" data-track-index="1">
+      <div class="fn-card" id="card">
+        <div class="fn-label">The skills</div>
+        <div class="fn-check done" id="i1"><span class="box"><svg viewBox="0 0 24 24"><path class="tick" d="M4 12.5l5 5L20 6.5"/></svg></span>Call a model API</div>
+        <div class="fn-check done" id="i2"><span class="box"><svg viewBox="0 0 24 24"><path class="tick" d="M4 12.5l5 5L20 6.5"/></svg></span>Retrieval (RAG)</div>
+        <div class="fn-check done" id="i3"><span class="box"><svg viewBox="0 0 24 24"><path class="tick" d="M4 12.5l5 5L20 6.5"/></svg></span>Evals</div>
+        <div class="fn-check done" id="i4"><span class="box"><svg viewBox="0 0 24 24"><path class="tick" d="M4 12.5l5 5L20 6.5"/></svg></span>Ship to production</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const D = 16;
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#card", { opacity: 0, x: 80 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 0);
+    [["#i1", 1.2], ["#i2", 4.0], ["#i3", 7.5], ["#i4", 11.0]].forEach(([sel, at]) => {
+      tl.fromTo(sel, { opacity: 0.0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, at)
+        .fromTo(`${sel} .tick`, { strokeDasharray: 30, strokeDashoffset: 30 }, { strokeDashoffset: 0, duration: 0.3, ease: "power1.out" }, at + 0.3);
+    });
+    tl.to("#card", { opacity: 0, x: 40, duration: 0.35, ease: "power2.in" }, D - 0.35);
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+</html>

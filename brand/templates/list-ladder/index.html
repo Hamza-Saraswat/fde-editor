@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- TEMPLATE list-ladder — ranked list that builds bottom-up (e.g. price ladder, cheapest at the bottom).
+     Framing: speaker RIGHT third → zone "left-wide" (enter from the left). Footer note in mono.
+     Beats: rows appear on their spoken name, bottom row first. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, height=1440" />
+  <link rel="stylesheet" href="kit/tokens.css" />
+  <link rel="stylesheet" href="kit/components.css" />
+  <script src="kit/gsap.min.js"></script>
+</head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="12" data-width="2560" data-height="1440">
+    <div id="zone" class="clip fn-zone" data-zone="left-wide" data-start="0" data-duration="12" data-track-index="1">
+      <div class="fn-card" id="card">
+        <div class="fn-label">Start building for under $20/mo</div>
+        <ul class="fn-list" style="margin-top:12px;">
+          <li id="r4"><span>$100–$200 tiers</span><span class="meta">later</span></li>
+          <li id="r3"><span>Claude Pro <span class="fn-italic" style="color:var(--fn-muted)">(Claude Code)</span></span><span class="meta">$20/mo</span></li>
+          <li id="r2"><span>ChatGPT Plus <span class="fn-italic" style="color:var(--fn-muted)">(Codex)</span></span><span class="meta">$20/mo</span></li>
+          <li id="r1"><span class="fn-signal-text">Open-model plan</span><span class="meta">~$10/mo</span></li>
+        </ul>
+        <div class="fn-mono" style="margin-top:18px;font-size:24px;">Prices as of Oct 2026. Check before you buy.</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const D = 12;
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#card", { opacity: 0, x: -80 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 0);
+    [["#r1", 0.8], ["#r2", 3.0], ["#r3", 5.0], ["#r4", 7.5]].forEach(([sel, at]) =>
+      tl.fromTo(sel, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, at));
+    tl.to("#card", { opacity: 0, x: -40, duration: 0.35, ease: "power2.in" }, D - 0.35);
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+</html>

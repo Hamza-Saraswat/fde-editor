@@ -36,6 +36,7 @@ export type RunClaudeOptions = {
   onEvent?: (e: ClaudeEvent) => void;
   bin?: string; // default "claude"
   extraArgs?: string[];
+  env?: Record<string, string>; // added on top of the cleaned environment
 };
 
 export type RunClaudeResult = {
@@ -98,7 +99,7 @@ export async function runClaude(opts: RunClaudeOptions): Promise<RunClaudeResult
     // When this app is started from inside a Claude Code / desktop-app session, that session's
     // variables (CLAUDECODE, CLAUDE_CODE_*, ANTHROPIC_BASE_URL) leak into the child and point it at
     // the host's auth instead of the user's own `claude auth login`. Start it from a clean slate.
-    env: cleanClaudeEnv(),
+    env: { ...cleanClaudeEnv(), ...opts.env },
     extendEnv: false,
     cancelSignal: opts.signal,
     reject: false,

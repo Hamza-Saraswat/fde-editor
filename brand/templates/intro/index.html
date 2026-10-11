@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- INTRO sting — full frame, opaque, 3 s. Rendered once to brand/renders/intro.mov and prepended to every video.
+     Edit the defaults below (or pass --variables) to change the wording. -->
+<html lang="en" data-composition-variables='[
+  {"id":"name","type":"string","label":"Name","default":"Hamza Saraswat"},
+  {"id":"tagline","type":"string","label":"Tagline","default":"AI engineering, from the field"}
+]'>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, height=1440" />
+  <link rel="stylesheet" href="kit/tokens.css" />
+  <link rel="stylesheet" href="kit/components.css" />
+  <script src="kit/gsap.min.js"></script>
+  <style>
+    #bg { position: absolute; inset: 0; background: var(--fn-ink); }
+    #lockup { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; color: var(--fn-paper); }
+    #rule { width: 0; height: 6px; background: var(--fn-signal); margin: 0 auto 40px; border-radius: 3px; }
+    #name { font-family: var(--fn-serif); font-weight: 600; font-size: 150px; letter-spacing: -0.02em; line-height: 1; }
+    #tagline { margin-top: 30px; color: var(--fn-rule); font-size: 34px; }
+  </style>
+</head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="3" data-width="2560" data-height="1440">
+    <div id="bg" class="clip" data-start="0" data-duration="3" data-track-index="0"></div>
+    <div id="lockup" class="clip" data-start="0" data-duration="3" data-track-index="1">
+      <div id="rule"></div>
+      <div id="name" data-var-text="name">Hamza Saraswat</div>
+      <div id="tagline" class="fn-label" data-var-text="tagline">AI engineering, from the field</div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#rule", { width: 0 }, { width: 220, duration: 0.5, ease: "power3.out" }, 0.15)
+      .fromTo("#name", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0.3)
+      .fromTo("#tagline", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 0.75)
+      .to("#lockup", { opacity: 0, duration: 0.35, ease: "power2.in" }, 2.55);
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+</html>

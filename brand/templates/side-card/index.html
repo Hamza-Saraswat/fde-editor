@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- TEMPLATE side-card — one definition / concept card in the open side of the frame.
+     Framing: speaker on the LEFT third → zone "right-wide" (enter from the right edge).
+     For a speaker on the right third use zone "left-wide" and enter from the left (x: -80).
+     Beats (graphic-relative seconds, from the spoken words): 0.00 card in · 0.90 term highlight
+     draws on "inside the customer's world" · hold · exit ends exactly at data-duration. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, height=1440" />
+  <link rel="stylesheet" href="kit/tokens.css" />
+  <link rel="stylesheet" href="kit/components.css" />
+  <script src="kit/gsap.min.js"></script>
+</head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="6" data-width="2560" data-height="1440">
+    <div id="zone" class="clip fn-zone" data-zone="right-wide" data-start="0" data-duration="6" data-track-index="1">
+      <div class="fn-card" id="card">
+        <div class="fn-label pine">Definition</div>
+        <div class="fn-h1" style="margin-top:18px;">Forward Deployed Engineer</div>
+        <div class="fn-body" style="margin-top:22px;">An engineer who works <span class="fn-mark" id="mark">inside the customer's world</span> to make the product actually work there.</div>
+        <div class="fn-label" style="margin-top:26px;font-size:22px;">Term coined at Palantir</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const D = 6;
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#card", { opacity: 0, x: 80 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 0)
+      .fromTo("#card > *", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.08, ease: "power2.out" }, 0.12)
+      .fromTo("#mark", { "--fn-mark": "0%" }, { "--fn-mark": "100%", duration: 0.4, ease: "power2.out" }, 0.9)
+      .to("#card", { opacity: 0, x: 40, duration: 0.35, ease: "power2.in" }, D - 0.35);
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+</html>

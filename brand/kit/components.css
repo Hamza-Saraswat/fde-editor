@@ -1,0 +1,80 @@
+/* Field Notes components. Every graphic is a transparent overlay on a 2560×1440 canvas.
+   Put content inside ONE zone that matches the framing (see BRAND.md → Zones). */
+
+html, body { margin: 0; background: transparent; }
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ---------- zones: where graphics may live ---------- */
+.fn-zone { position: absolute; top: 120px; height: 1200px; display: flex; flex-direction: column; justify-content: center; gap: var(--fn-gap); }
+.fn-zone[data-zone="right-wide"]   { left: 1180px; width: 1260px; } /* speaker on the left third  */
+.fn-zone[data-zone="left-wide"]    { left: 120px;  width: 1260px; } /* speaker on the right third */
+.fn-zone[data-zone="left-narrow"]  { left: 100px;  width: 760px; }  /* speaker centred */
+.fn-zone[data-zone="right-narrow"] { left: 1700px; width: 760px; }  /* speaker centred */
+.fn-zone[data-zone="full"]         { left: 160px;  width: 2240px; top: 100px; height: 1240px; }
+.fn-zone[data-zone="lower-third-left"]  { left: 120px; top: auto; bottom: 150px; height: auto; width: auto; max-width: 1100px; }
+.fn-zone[data-zone="lower-third-right"] { right: 120px; left: auto; top: auto; bottom: 150px; height: auto; width: auto; max-width: 1100px; align-items: flex-end; }
+.fn-zone.top { justify-content: flex-start; }
+.fn-zone.bottom { justify-content: flex-end; }
+
+/* ---------- card ---------- */
+.fn-card {
+  background: var(--fn-paper); color: var(--fn-ink); border: 1px solid var(--fn-border);
+  border-radius: var(--fn-radius); box-shadow: var(--fn-shadow); padding: var(--fn-pad);
+  font-family: var(--fn-serif); font-size: var(--fn-size-body); line-height: 1.3;
+}
+.fn-card.signal { outline: 3px solid var(--fn-signal); outline-offset: -3px; }
+.fn-card.tight { padding: 32px 40px; }
+.fn-row { display: flex; gap: var(--fn-gap); align-items: stretch; }
+.fn-row > * { flex: 1 1 0; min-width: 0; }
+
+/* ---------- type ---------- */
+.fn-label { font-family: var(--fn-mono); font-weight: 500; font-size: var(--fn-size-label); letter-spacing: var(--fn-tracking-label); text-transform: uppercase; color: var(--fn-muted); }
+.fn-label.signal { color: var(--fn-signal); }
+.fn-label.pine { color: var(--fn-pine); }
+.fn-hero { font-family: var(--fn-serif); font-weight: 600; font-size: var(--fn-size-hero); line-height: 1.0; letter-spacing: -0.015em; }
+.fn-h1 { font-family: var(--fn-serif); font-weight: 600; font-size: var(--fn-size-h1); line-height: 1.06; letter-spacing: -0.012em; }
+.fn-h2 { font-family: var(--fn-serif); font-weight: 600; font-size: var(--fn-size-h2); line-height: 1.1; }
+.fn-body { font-family: var(--fn-serif); font-size: var(--fn-size-body); line-height: 1.35; }
+.fn-mono { font-family: var(--fn-mono); font-size: 30px; color: var(--fn-muted); }
+.fn-signal-text { color: var(--fn-signal); }
+.fn-italic { font-style: italic; }
+.fn-stack > * + * { margin-top: 16px; }
+
+/* marker highlight: animate --fn-mark from 0% to 100% to "draw" it */
+.fn-mark { --fn-mark: 100%; background-image: linear-gradient(var(--fn-signal-soft), var(--fn-signal-soft)); background-repeat: no-repeat; background-size: var(--fn-mark) 0.9em; background-position: 0 70%; padding: 0 4px; }
+
+/* ---------- chips ---------- */
+.fn-chip { display: inline-flex; align-items: center; font-family: var(--fn-mono); font-weight: 600; font-size: 24px; letter-spacing: 0.06em; text-transform: uppercase; padding: 8px 16px; border-radius: 999px; background: var(--fn-signal); color: var(--fn-on-signal); }
+.fn-chip.quiet { background: var(--fn-paper-2); color: var(--fn-muted); }
+.fn-chip.pine { background: var(--fn-pine); color: var(--fn-on-signal); }
+
+/* ---------- checklist ---------- */
+.fn-check { display: flex; align-items: center; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--fn-rule); font-family: var(--fn-serif); font-size: 44px; }
+.fn-check .box { flex: none; width: 50px; height: 50px; border: 2px solid var(--fn-rule); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.fn-check.done .box { border-color: var(--fn-signal); }
+.fn-check .box svg { width: 30px; height: 30px; stroke: var(--fn-signal); stroke-width: 3.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.fn-check.todo { color: var(--fn-muted); }
+
+/* ---------- list / ladder ---------- */
+.fn-list { list-style: none; margin: 0; padding: 0; }
+.fn-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--fn-rule); font-size: 40px; }
+.fn-list li .meta { font-family: var(--fn-mono); font-size: 28px; color: var(--fn-muted); white-space: nowrap; }
+
+/* ---------- stat ---------- */
+.fn-stat { font-family: var(--fn-serif); font-weight: 700; font-size: 150px; line-height: 0.95; letter-spacing: -0.02em; color: var(--fn-signal); font-variant-numeric: tabular-nums; }
+
+/* ---------- lower third ---------- */
+.fn-lower-third { padding: 30px 44px; }
+.fn-lower-third .name { font-family: var(--fn-serif); font-weight: 600; font-size: 60px; line-height: 1.05; }
+.fn-lower-third .role { margin-top: 12px; }
+
+/* ---------- screenshot (B-roll) ---------- */
+.fn-shot { position: relative; padding: 18px; background: var(--fn-paper); border: 1px solid var(--fn-border); border-radius: var(--fn-radius); box-shadow: var(--fn-shadow); }
+.fn-shot .viewport { position: relative; overflow: hidden; border-radius: 4px; background: #fff; }
+.fn-shot .viewport img { position: absolute; display: block; max-width: none; }
+.fn-shot .blur { position: absolute; backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); background: rgba(244, 239, 230, 0.35); border-radius: 6px; }
+.fn-shot .hl { position: absolute; border: 4px solid var(--fn-signal); border-radius: 6px; background: var(--fn-signal-soft); }
+.fn-shot .caption { margin-top: 14px; }
+
+/* ---------- full-frame card (layout "full") ---------- */
+.fn-full { position: absolute; inset: 100px 160px; }

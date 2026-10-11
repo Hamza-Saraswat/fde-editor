@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- TEMPLATE split-compare — layout "split": speaker CENTRED, one card on each side.
+     Zones "left-narrow" + "right-narrow". Left card enters from the left edge, right card from the right.
+     Beats: 0.00 left card in ("Is AI the tool…") · 1.60 right card in ("…or the product?") · exit at end. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, height=1440" />
+  <link rel="stylesheet" href="kit/tokens.css" />
+  <link rel="stylesheet" href="kit/components.css" />
+  <script src="kit/gsap.min.js"></script>
+</head>
+<body>
+  <div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="2560" data-height="1440">
+    <div id="left" class="clip fn-zone" data-zone="left-narrow" data-start="0" data-duration="7" data-track-index="1">
+      <div class="fn-card" id="cardL">
+        <div class="fn-label">If AI is the tool</div>
+        <div class="fn-h2" style="margin-top:18px;">AI-powered developer</div>
+        <div class="fn-body" style="margin-top:16px;color:var(--fn-muted);">You ship normal software, faster.</div>
+      </div>
+    </div>
+    <div id="right" class="clip fn-zone" data-zone="right-narrow" data-start="0" data-duration="7" data-track-index="2">
+      <div class="fn-card signal" id="cardR">
+        <div class="fn-label signal">If AI is the product</div>
+        <div class="fn-h2" style="margin-top:18px;">Applied AI engineer / FDE</div>
+        <div class="fn-body" style="margin-top:16px;color:var(--fn-muted);">You ship the AI itself.</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const D = 7;
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#cardL", { opacity: 0, x: -80 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 0)
+      .fromTo("#cardR", { opacity: 0, x: 80 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 1.6)
+      .to("#cardL", { opacity: 0, x: -40, duration: 0.35, ease: "power2.in" }, D - 0.35)
+      .to("#cardR", { opacity: 0, x: 40, duration: 0.35, ease: "power2.in" }, D - 0.35);
+    window.__timelines["main"] = tl;
+  </script>
+</body>
+</html>

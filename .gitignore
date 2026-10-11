@@ -21,3 +21,6 @@ dist/
 
 # Brand board snapshots (regenerate with make-boards.mjs)
 /brand/directions/*/snapshots/
+/brand/templates/*/kit/
+/brand/templates/*/snapshots/
+/brand/renders/
