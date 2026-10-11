@@ -82,7 +82,8 @@ export function sideAudioChain(input: number | null, samples: number, out: strin
 
 /** Bitrate for the YouTube master: 45 Mb/s at 1440p30, scaled by pixel rate. */
 export function finalBitrateMbps(width: number, height: number, fps: number): number {
-  return Math.max(4, Math.round((45 * width * height * fps) / (2560 * 1440 * 30)));
+  // YouTube recommends 16 Mb/s for 1440p30 SDR uploads; 24 leaves headroom for VideoToolbox.
+  return Math.max(4, Math.round((24 * width * height * fps) / (2560 * 1440 * 30)));
 }
 
 const COLOR_TAGS = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];

@@ -135,9 +135,9 @@ describe("render arg builders", () => {
     expect(() => parseLoudnormJson("nothing")).toThrow();
   });
 
-  it("final bitrate scales from 45 Mb/s at 1440p30", () => {
-    expect(finalBitrateMbps(2560, 1440, 30)).toBe(45);
-    expect(finalBitrateMbps(1920, 1080, 30)).toBe(25);
+  it("final bitrate scales from 24 Mb/s at 1440p30", () => {
+    expect(finalBitrateMbps(2560, 1440, 30)).toBe(24);
+    expect(finalBitrateMbps(1920, 1080, 30)).toBe(14);
     expect(finalBitrateMbps(320, 180, 30)).toBe(4);
   });
 });

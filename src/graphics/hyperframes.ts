@@ -113,5 +113,5 @@ export async function ensureOutro(cacheDir: string, nextTitle: string, opts: Opt
   const out = join(cacheDir, `outro-${key}.mov`);
   if (existsSync(out)) return out;
   await stageKit(dir);
-  return renderComposition(dir, out, { ...opts, variables: { nextTitle: `Next: ${nextTitle}` } });
+  return renderComposition(dir, out, { ...opts, variables: { nextTitle } });
 }
