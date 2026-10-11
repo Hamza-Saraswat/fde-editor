@@ -12,7 +12,7 @@ export const SCHEMAS_DIR = join(REPO_ROOT, "schemas");
 export const HYPERFRAMES_BIN = join(REPO_ROOT, "node_modules", ".bin", "hyperframes");
 export const brandPaths = {
   spec: join(BRAND_DIR, "BRAND.md"),
-  tokens: join(BRAND_DIR, "tokens.css"),
+  tokens: join(BRAND_DIR, "kit", "tokens.css"),
   fontsDir: join(BRAND_DIR, "fonts"),
   templatesDir: join(BRAND_DIR, "templates"),
   intro: join(BRAND_DIR, "renders", "intro.mov"),

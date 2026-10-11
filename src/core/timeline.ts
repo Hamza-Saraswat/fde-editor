@@ -71,13 +71,15 @@ function computeRemoval(edit: Edit, idx: WordIndex): Removal {
     }
   }
 
+  // Words in ANY group's chosen take are protected: an unchosen option of one sentence can overlap
+  // the chosen take of another (a short line that also appears inside a longer one).
+  const chosenOpts = edit.takeGroups.map((g) => g.options[g.chosen]).filter((o): o is TakeOption => Boolean(o));
+  const keep = new Set(chosenOpts.flatMap((o) => optionWords(idx, o).map((w) => w.id)));
   for (const g of edit.takeGroups) {
-    const chosen = g.options[g.chosen];
-    const keep = new Set(chosen ? optionWords(idx, chosen).map((w) => w.id) : []);
     g.options.forEach((opt, i) => {
       if (i === g.chosen) return;
       for (const w of optionWords(idx, opt)) if (!keep.has(w.id)) words.add(w.id);
-      const overlapsChosen = chosen && chosen.clipId === opt.clipId && opt.start < chosen.end && opt.end > chosen.start;
+      const overlapsChosen = chosenOpts.some((c) => c.clipId === opt.clipId && opt.start < c.end && opt.end > c.start);
       if (!overlapsChosen) addRange(opt.clipId, { start: opt.start, end: opt.end });
     });
   }
@@ -261,7 +263,7 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
       const e = resolve(ov.endWordId, -1);
       const endAt = e && outAt(e, e.end);
       if (!endAt) continue;
-      end = endAt.t;
+      end = endAt.t + (ov.offsetMs ?? 0) / 1000; // a nudge moves the whole graphic, it doesn't trim it
     }
     start = clamp(start, 0, timeline.duration);
     end = clamp(end, 0, timeline.duration);

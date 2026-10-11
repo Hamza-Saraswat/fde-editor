@@ -24,7 +24,7 @@ export function markdownTitle(markdown: string): string | null {
   return m ? stripInlineMarkdown(m[1]!).replace(/\s+/g, " ").trim() || null : null;
 }
 
-/** Every .md file with an H1 in `root` and up to two folders below it, newest first. */
+/** Every video script (.md with an H1 and **SAY** blocks) in `root` and up to two folders below it, newest first. */
 export async function listScripts(root: string, maxDepth = 2): Promise<ScriptEntry[]> {
   const base = resolve(expandHome(root));
   const out: ScriptEntry[] = [];
@@ -44,7 +44,8 @@ export async function listScripts(root: string, maxDepth = 2): Promise<ScriptEnt
         try {
           const [text, st] = await Promise.all([readFile(full, "utf8"), stat(full)]);
           const title = markdownTitle(text);
-          if (!title) continue;
+          // Only video scripts: articles and notes in the same folders have no spoken **SAY** blocks.
+          if (!title || !/^\*\*SAY\*\*\s*$/m.test(text)) continue;
           out.push({ path: full, title, folder: relative(base, dir) || basename(base), modified: st.mtime.toISOString() });
         } catch {
           // unreadable file: skip

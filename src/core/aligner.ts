@@ -226,8 +226,16 @@ export function alignScript(script: ScriptDoc, transcript: Pick<Transcript, "wor
   const sentenceIds = script.sentences.map((s) =>
     Int32Array.from(sentenceTokens(s), (t) => stream.vocab.get(t) ?? -1));
 
-  const matches = sentenceIds.map((S) => findOccurrences(S, stream));
-  const chosen = bestPath(matches, stream.ids.length, sentenceIds.map((S) => S.length));
+  const allMatches = sentenceIds.map((S) => findOccurrences(S, stream));
+  const path = bestPath(allMatches, stream.ids.length, sentenceIds.map((S) => S.length));
+
+  // A short sentence ("Same title.") can also match inside a longer sentence that contains the same
+  // words. Such a match is part of that other sentence's take, not a retake: drop non-chosen
+  // occurrences that overlap another sentence's chosen occurrence, then re-index the choice.
+  const chosenSpans = path.flatMap((c, i) => (c === null ? [] : [{ i, b: allMatches[i]![c]!.b, e: allMatches[i]![c]!.e }]));
+  const matches = allMatches.map((list, i) =>
+    list.filter((m, k) => k === path[i] || !chosenSpans.some((c) => c.i !== i && m.b <= c.e && m.e >= c.b)));
+  const chosen = path.map((c, i) => (c === null ? null : matches[i]!.indexOf(allMatches[i]![c]!)));
 
   const toOccurrence = (m: Match): Occurrence => {
     const first = words[stream.firstWord[m.b]!]!;

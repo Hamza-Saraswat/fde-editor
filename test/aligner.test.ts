@@ -70,10 +70,11 @@ describe("alignScript", () => {
       expect(occ.score).toBe(1);
       expect(occ.clipId).toBe("c1");
     }
-    // "Same title." is also said inside s1 — found, but the in-order path takes the real one
+    // "Same title." is also said inside s1, but those words belong to s1's chosen take, so that
+    // match is not offered as a retake (choosing it would cut words out of s1).
     const same = c.sentences.find((s) => s.sentenceId === "s4")!;
-    expect(same.occurrences.length).toBe(2);
-    expect(same.chosen).toBe(1);
+    expect(same.occurrences.length).toBe(1);
+    expect(same.chosen).toBe(0);
   });
 
   it("(b) a flubbed first attempt and a retake: two occurrences, the later one chosen", () => {
@@ -227,5 +228,19 @@ describe("alignScript", () => {
     const ms = performance.now() - t0;
     expect(ms).toBeLessThan(3000);
     expect(c.missing).toEqual([]);
+  });
+});
+
+describe("short lines contained in longer ones", () => {
+  it("does not treat 'Same title.' inside the first sentence as a retake", () => {
+    const script = makeScript(S);
+    const { words } = makeWords(S.map((text) => ({ text })));
+    const c = alignScript(script, { words });
+    const same = c.sentences.find((s) => s.sentenceId === "s4")!;
+    expect(same.occurrences).toHaveLength(1); // only its own take, not the words inside s1
+    expect(same.chosen).toBe(0);
+    const s1 = c.sentences.find((s) => s.sentenceId === "s1")!;
+    const first = s1.occurrences[s1.chosen!]!;
+    expect(Number(same.occurrences[0]!.startWordId.slice(1))).toBeGreaterThan(Number(first.endWordId.slice(1)));
   });
 });

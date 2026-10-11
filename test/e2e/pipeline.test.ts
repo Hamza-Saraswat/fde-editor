@@ -133,6 +133,7 @@ describe("end to end on the fixture take", () => {
     expect(keptText).not.toContain("redo");
     expect(keptText).toContain("trips up a lot of people");
     expect(keptText).toContain("waste six months");
+    expect(keptText).toMatch(/using the same title/); // a short line inside a longer one is not a retake
     expect(duration).toBeLessThan(96 - 8); // dead air, flub and fillers removed
   });
 

@@ -38,7 +38,15 @@ export async function readOutputs(slug: string): Promise<Outputs> {
   const p = projectPaths(slug);
   const outputs: Outputs = { xclips: [] };
   const preview = mediaUrlIfExists(slug, p.preview);
-  if (preview) outputs.preview = preview;
+  if (preview) {
+    outputs.preview = preview;
+    try {
+      const info = JSON.parse(await readFile(join(p.outDir, "preview.json"), "utf8")) as { editVersion?: number };
+      if (typeof info.editVersion === "number") outputs.previewEditVersion = info.editVersion;
+    } catch {
+      /* built before preview.json existed */
+    }
+  }
   const final = mediaUrlIfExists(slug, p.final);
   if (final) outputs.final = final;
   if (existsSync(p.chapters)) outputs.chapters = (await readFile(p.chapters, "utf8")).trim();

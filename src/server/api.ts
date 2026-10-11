@@ -44,6 +44,7 @@ export type GraphicStatus = {
 
 export type Outputs = {
   preview?: string; // media URLs, present only when the file exists
+  previewEditVersion?: number; // edit.version the current preview.mp4 was built from
   final?: string;
   chapters?: string; // the text itself
   srt?: string; // media URL

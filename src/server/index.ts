@@ -9,7 +9,8 @@ export { createApp, recoverInterruptedStages, type AppDeps, type ServerApp } fro
 export const HOST = "127.0.0.1";
 
 export async function main(): Promise<void> {
-  const port = Number(process.env.PORT ?? 4317);
+  // Not the generic PORT: dev launchers set PORT for the web dev server, and the Vite proxy targets 4317.
+  const port = Number(process.env.FDE_SERVER_PORT ?? 4317);
   await recoverInterruptedStages();
   const { app, dispose } = createApp();
   const server = serve({ fetch: app.fetch, port, hostname: HOST }, (info) => {

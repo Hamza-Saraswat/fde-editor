@@ -206,3 +206,35 @@ describe("overlays and chapters", () => {
     near(tl.chapters[1]!.start, sourceToOutput(tl, "c1", 2.85)!);
   });
 });
+
+describe("take groups that overlap another group's chosen take", () => {
+  it("never removes words that belong to a different sentence's chosen take", () => {
+    // "…using the same title." (group A, chosen) — "Same title." (group B) has a bogus alternate inside A.
+    const ws = words("c1", [["using", 0, 0.3], ["the", 0.35, 0.5], ["same", 0.55, 0.8], ["title.", 0.85, 1.2], ["Same", 2.0, 2.3], ["title.", 2.35, 2.7]]);
+    const [w0, , w2, w3, w4, w5] = ws.map((w) => w.id);
+    const opt = (a: Word, b: Word) => ({ clipId: "c1", startWordId: a.id, endWordId: b.id, start: a.start, end: b.end });
+    const edit = editOf({
+      takeGroups: [
+        { id: "A", sentenceIds: ["s1"], options: [opt(ws[0]!, ws[3]!)], chosen: 0, why: "" },
+        { id: "B", sentenceIds: ["s4"], options: [opt(ws[4]!, ws[5]!), opt(ws[2]!, ws[3]!)], chosen: 0, why: "" },
+      ],
+    });
+    const kept = keptWordIds(edit, transcriptOf(ws));
+    for (const id of [w0, w2, w3, w4, w5]) expect(kept.has(id!)).toBe(true);
+    const tl = buildTimeline(edit, transcriptOf(ws), [clip("c1", 3)], config());
+    // the first sentence plays through "title." (no hole where the bogus alternate was)
+    expect(tl.segments[0]!.start).toBeLessThanOrEqual(0.0001);
+    expect(tl.segments[0]!.end).toBeGreaterThanOrEqual(1.2);
+  });
+});
+
+describe("overlay nudges", () => {
+  it("moves the whole graphic: start and end shift together, length unchanged", () => {
+    const ws = words("c1", [["one", 0, 0.4], ["two", 0.5, 0.9], ["three", 1.0, 1.4], ["four", 1.5, 1.9], ["five", 2.0, 2.4]]);
+    const ov = (offsetMs: number) => ({ id: "o-g1", cueId: "g1", enabled: true, anchorWordId: ws[1]!.id, endWordId: ws[3]!.id, offsetMs, layout: "side" as const, brief: "", assetIds: [] });
+    const base = buildTimeline(editOf({ overlays: [ov(0)] }), transcriptOf(ws), [clip("c1", 3)], config()).overlays[0]!;
+    const moved = buildTimeline(editOf({ overlays: [ov(300)] }), transcriptOf(ws), [clip("c1", 3)], config()).overlays[0]!;
+    near(moved.start - base.start, 0.3);
+    near(moved.end - base.end, 0.3);
+  });
+});
