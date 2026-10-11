@@ -9,7 +9,10 @@ see the video; everything you need is in `input.json`.
 1. `input.json` in your graphic folder:
    - `cue`: the script's description of the graphic, and its kind (`gfx` = motion graphic, `broll` =
      screenshot).
-   - `brief`: what to build and the beats, written by the editor. Follow it.
+   - `brief`: what to build and the beats, written by the editor. Follow its content, text and word
+     timing. Where it asks for motion or colour that `brand/BRAND.md` forbids (pulsing, flashing,
+     looping, extra accent colours), keep the beat but use the brand's version of it (a marker
+     highlight, a tick or an outline).
    - `note`: Hamza's feedback on the previous attempt. It overrides the brief where they conflict.
    - `durationSec`: the exact length. `words[]`: what he says while it's on screen, with times relative
      to the graphic's start.

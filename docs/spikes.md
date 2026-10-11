@@ -46,3 +46,38 @@ Video segments are cut with `-ss` before `-i`, `-frames:v N` and `h264_videotool
 ## (e) Burned-in captions
 
 This Homebrew ffmpeg has **no libass and no drawtext** (no `subtitles`/`ass` filters). X-clip captions are therefore rendered as a transparent HyperFrames caption layer and overlaid, which was the plan's fallback.
+
+## (f) The Claude-driven steps, run for real (2026-10-11)
+
+The `claude` CLI on this Mac isn't logged in yet, so `claude -p` itself couldn't run. Every step was split into
+`prepare → Claude → apply` (`preparePlan/applyPlan`, `prepareGraphic/validateGraphic/finishGraphic`,
+`prepareXClips/applyXClips`). Opus subagents then did the Claude part. Each was given exactly what the headless
+run receives: the same system prompt file, user prompt, input files, JSON schema and allowed tools. Each answer
+went through the real validation, compilation, rendering and stage code (`scripts/claude-steps.ts`). The only
+link not exercised is the CLI's own authentication.
+
+Project `live-claude-check`, the fixture take created through the server API:
+
+- **Import, transcription, alignment.** Real Parakeet, through the server: 307 words, 22/23 lines matched,
+  1 missing line, 1 retake, 2 ad-libs.
+- **Plan edit.** Passed schema validation first time and compiled with 0 warnings.
+  - Takes: kept the clean retake.
+  - Ad-libs: cut "let me redo that" and kept the good one.
+  - Cuts: 3 filler words.
+  - Graphics: all 3 anchored to where their topic is first spoken.
+  - Notes: flagged the missing line (needs a pickup recording) and noticed "Cloed" = "Claude".
+- **Graphics.** g1 (job cards), g2 (model/engineer/product stack) and g3 (essay card): on brand, in the open-side
+  zone, passed lint and check, and rendered ProRes 4444 at the exact length (19.63 s, 23.50 s, 13.70 s).
+- **Render.** 1:43 final with 3 graphics, intro, and an end card with the next video's title.
+- **X clips.** Picked 35.5 s and 40.6 s moments within the rules, rendered at 1080p with brand captions.
+
+Bugs this run found (all fixed, with regression tests):
+
+1. **Clipped word onsets.** Frame snapping rounded a segment start past the next word's onset after a filler cut
+   ("chasing" lost its "ch"). Snapping now always widens.
+2. **Mishearings in captions.** Script spelling only fixed exact matches, so "Cloed"/"min set" would have been
+   burned into captions. Clean substitutions between matched neighbours now take the script's spelling.
+3. **Brief vs brand.** The planner's briefs asked for pulsing and flashing, which BRAND.md forbids. Both prompts
+   now say the brand's motion rules win, and the brief decides content and timing.
+4. **Needless rebuilds.** A graphic shifting by a frame or two marked it stale and asked for a Claude rebuild.
+   Duration now only marks it stale beyond 0.25 s.

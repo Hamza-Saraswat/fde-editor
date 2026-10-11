@@ -69,11 +69,12 @@ function placement(ctx: Ctx, ov: Overlay) {
   return { start: placed.start, end: placed.end, durationSec };
 }
 
-function fingerprint(ctx: Ctx, ov: Overlay, durationSec: number): string {
+/** Content fingerprint (what the graphic shows and where). Duration is compared separately, with tolerance. */
+function fingerprint(ctx: Ctx, ov: Overlay, _durationSec?: number): string {
   const side = overlaySide(ov, ctx.project.speakerSide);
   const assets = overlayAssets(ctx.project, ov).map((a) => ({ f: a.file, c: a.crop, b: a.blur, h: a.highlight }));
   return createHash("sha1")
-    .update(JSON.stringify({ d: durationSec.toFixed(2), side, layout: ov.layout, framing: ctx.project.speakerSide, brief: ov.brief, assets }))
+    .update(JSON.stringify({ side, layout: ov.layout, framing: ctx.project.speakerSide, brief: ov.brief, assets }))
     .digest("hex")
     .slice(0, 16);
 }
@@ -108,7 +109,10 @@ async function writeStored(slug: string, cueId: string, s: StoredStatus) {
   await writeFile(statusFile(slug, cueId), JSON.stringify(s, null, 2) + "\n");
 }
 
-function toPublic(slug: string, cueId: string, s: StoredStatus | null, currentFingerprint: string | null, ov?: Overlay, speakerSide?: Project["speakerSide"]): GraphicStatus {
+/** A graphic only needs rebuilding when its length moves by more than this (a frame or two is invisible). */
+export const STALE_DURATION_SEC = 0.25;
+
+function toPublic(slug: string, cueId: string, s: StoredStatus | null, currentFingerprint: string | null, ov?: Overlay, speakerSide?: Project["speakerSide"], currentDurationSec?: number): GraphicStatus {
   const p = projectPaths(slug);
   const url = (file: string) => (existsSync(file) ? `/media/${slug}/graphics/${cueId}/${basename(file)}?v=${Math.round(statSync(file).mtimeMs)}` : undefined);
   const status: GraphicStatus = {
@@ -116,7 +120,8 @@ function toPublic(slug: string, cueId: string, s: StoredStatus | null, currentFi
     state: s?.state ?? "none",
     message: s?.message ?? "",
     hasMov: existsSync(p.graphicMov(cueId)),
-    stale: Boolean(s?.state === "ready" && currentFingerprint && s.fingerprint !== currentFingerprint),
+    stale: Boolean(s?.state === "ready" && currentFingerprint && (s.fingerprint !== currentFingerprint ||
+      (currentDurationSec !== undefined && s.durationSec !== undefined && Math.abs(s.durationSec - currentDurationSec) > STALE_DURATION_SEC))),
   };
   if (s?.updatedAt) status.updatedAt = s.updatedAt;
   if (s?.durationSec !== undefined) status.durationSec = s.durationSec;
@@ -143,7 +148,7 @@ export async function graphicStatuses(slug: string): Promise<Record<string, Grap
   for (const ov of ctx.edit.overlays) {
     const place = placement(ctx, ov);
     const fp = place ? fingerprint(ctx, ov, place.durationSec) : null;
-    out[ov.cueId] = toPublic(slug, ov.cueId, await readStored(slug, ov.cueId), fp, ov, ctx.project.speakerSide);
+    out[ov.cueId] = toPublic(slug, ov.cueId, await readStored(slug, ov.cueId), fp, ov, ctx.project.speakerSide, place?.durationSec);
   }
   return out;
 }
@@ -183,7 +188,8 @@ export async function prepareGraphic(slug: string, cueId: string, opts: Pick<Bui
     ],
   };
   const prev = await readStored(slug, cueId);
-  if (!opts.force && !opts.note && prev?.state === "ready" && prev.fingerprint === fp && existsSync(paths.graphicMov(cueId))) {
+  const sameLength = prev?.durationSec !== undefined && Math.abs(prev.durationSec - place.durationSec) <= STALE_DURATION_SEC;
+  if (!opts.force && !opts.note && prev?.state === "ready" && prev.fingerprint === fp && sameLength && existsSync(paths.graphicMov(cueId))) {
     return { ...base, prompt: "", upToDate: toPublic(slug, cueId, prev, fp, ov, ctx.project.speakerSide) };
   }
 
@@ -233,7 +239,7 @@ export async function validateGraphic(prep: PreparedGraphic, signal?: AbortSigna
   if (!check.ok) return { ok: false, output: check.output };
   const html = await readFile(file, "utf8");
   const declared = Number(/data-composition-id="main"[^>]*data-duration="([\d.]+)"|data-duration="([\d.]+)"[^>]*data-composition-id="main"/.exec(html)?.slice(1).find(Boolean) ?? NaN);
-  if (!Number.isFinite(declared) || Math.abs(declared - prep.durationSec) > 1 / 30 + 1e-6) {
+  if (!Number.isFinite(declared) || Math.abs(declared - prep.durationSec) > STALE_DURATION_SEC) {
     return { ok: false, output: `The root declares data-duration=${declared}; it must be ${prep.durationSec.toFixed(2)} (input.json durationSec).` };
   }
   return { ok: true, output: check.output };
@@ -255,7 +261,7 @@ export async function finishGraphic(prep: PreparedGraphic, opts: Pick<BuildGraph
     onProgress: (f) => progress(0.6 + f * 0.3, `${cueId}: rendering ${Math.round(f * 100)}%`),
   });
   const got = await mediaDuration(paths.graphicMov(cueId));
-  if (Math.abs(got - prep.durationSec) > 2 / 30) throw new Error(`Rendered ${got.toFixed(2)} s, expected ${prep.durationSec.toFixed(2)} s`);
+  if (Math.abs(got - prep.durationSec) > STALE_DURATION_SEC + 2 / 30) throw new Error(`Rendered ${got.toFixed(2)} s, expected ${prep.durationSec.toFixed(2)} s`);
   progress(0.92, `${cueId}: preview`);
   await movToPreviewWebm(paths.graphicMov(cueId), paths.graphicWebm(cueId), { signal: opts.signal });
   const where = prep.layout === "split" ? "both sides" : prep.layout === "full" ? "full frame" : `${prep.side} side`;

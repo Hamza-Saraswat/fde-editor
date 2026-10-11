@@ -116,6 +116,16 @@ run on the committed fixture take (a few minutes).
 Phase 0 measurements behind the design choices are in `docs/spikes.md`, and the full design is in
 `docs/design.md`.
 
+### Running a Claude step by hand
+
+`scripts/claude-steps.ts` splits each Claude step into a `prepare-*` and an `apply-*` command:
+
+- `prepare-*` prints exactly what the headless run would get: the prompt, the system prompt file, the inputs
+  and the schema.
+- `apply-*` feeds an answer through the same validation and rendering the server uses.
+
+This is handy for debugging a prompt, or for running a step from an interactive Claude Code session.
+
 ## Credits
 
 - HyperFrames skills in `.claude/skills/` are vendored from heygen-com/hyperframes v0.8.134 (Apache-2.0).

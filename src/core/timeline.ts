@@ -171,12 +171,14 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
       else built.push({ start, end, firstWordId: isl.first.id });
     }
 
-    // 3. snap to the frame grid, merge what now touches, drop slivers
+    // 3. snap to the frame grid, merge what now touches, drop slivers. Always widen (start down, end
+    //    up): a cut that ends exactly where a kept word starts must never clip that word's onset.
+    //    The cost is at most one frame (≤ 33 ms at 30 fps) of the cut material, which is inaudible.
     const maxFrame = Math.floor(duration * fps + EPS);
     const snapped: { sf: number; ef: number; firstWordId: string }[] = [];
     for (const b of built) {
-      const sf = Math.max(0, Math.round(b.start * fps));
-      const ef = Math.min(maxFrame, Math.round(b.end * fps));
+      const sf = Math.max(0, Math.floor(b.start * fps + EPS));
+      const ef = Math.min(maxFrame, Math.ceil(b.end * fps - EPS));
       const prev = snapped.at(-1);
       if (prev && sf <= prev.ef) prev.ef = Math.max(prev.ef, ef);
       else snapped.push({ sf, ef, firstWordId: b.firstWordId });

@@ -106,3 +106,27 @@ describe("scriptSpellingMap", () => {
     expect(srt).not.toContain("dollars");
   });
 });
+
+describe("misheard and split words between matched neighbours", () => {
+  const w = (texts: string[]) => texts.map((text, i) => ({ id: `w${i}`, text }));
+  it("respells a single misheard word", async () => {
+    const { alignSpelling } = await import("../src/pipeline/spelling.ts");
+    const map = new Map<string, string>();
+    alignSpelling("You're not training GPT or Claude.".split(" "), w(["You're", "not", "training", "GPT", "or", "Cloed."]), map);
+    expect(map.get("w5")).toBe("Claude.");
+  });
+  it("merges a word heard as two", async () => {
+    const { alignSpelling } = await import("../src/pipeline/spelling.ts");
+    const map = new Map<string, string>();
+    alignSpelling("the skills you need for each, the mindset that matters".split(" "), w(["the", "skills", "you", "need", "for", "each,", "the", "min", "set", "that", "matters"]), map);
+    expect(map.get("w7")).toBe("mindset");
+    expect(map.get("w8")).toBe("");
+  });
+  it("leaves longer mismatches (ad-libs) alone", async () => {
+    const { alignSpelling } = await import("../src/pipeline/spelling.ts");
+    const map = new Map<string, string>();
+    alignSpelling("one two three".split(" "), w(["one", "honestly", "this", "is", "great", "three"]), map);
+    expect(map.has("w1")).toBe(false);
+    expect(map.has("w4")).toBe(false);
+  });
+});

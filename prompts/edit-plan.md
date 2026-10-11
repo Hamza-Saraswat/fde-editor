@@ -111,6 +111,9 @@ Give one entry per cue in `cues`.
   "card A slides in on 'one wants'; card B on 'the other'; highlight 'RAG' when he says 'RAG'".
   Keep the cue's own wording for on-screen text. Mention any [VERIFY]/[CONFIRM] flag so it is checked.
   For a `broll` cue, describe the crop, highlights and redactions the screenshot needs.
+  Stay inside the channel's motion language (brand/BRAND.md): elements enter from the open-side edge
+  and hold still between beats. Emphasis = a marker highlight, a tick or an outline, never pulsing,
+  flashing, bouncing or looping. One orange emphasis per graphic. Don't prescribe colours or logos.
 - Graphics should not overlap; if two cues would, end the earlier one when the next begins.
 
 ## Output

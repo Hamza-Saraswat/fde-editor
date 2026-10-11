@@ -28,12 +28,12 @@ describe("buildTimeline", () => {
     const tl = buildTimeline(editOf(), transcriptOf(ws), [clip("c1", 10)], config(30));
     expect(tl.segments).toHaveLength(1);
     const s = tl.segments[0]!;
-    // 1.013 - 0.08 = 0.933 -> frame 28; 1.5 + 0.12 = 1.62 -> frame 48.6 -> 49
-    near(s.start * 30, 28);
+    // snapping widens: 1.013 - 0.08 = 0.933 -> frame 27.99 -> 27 (down); 1.5 + 0.12 = 1.62 -> 48.6 -> 49 (up)
+    near(s.start * 30, 27);
     near(s.end * 30, 49);
-    expect(s.frames).toBe(21);
+    expect(s.frames).toBe(22);
     expect(s.outStart).toBe(0);
-    near(tl.duration, 21 / 30);
+    near(tl.duration, 22 / 30);
   });
 
   it("pads kept words with preMs before and postMs after", () => {
@@ -236,5 +236,16 @@ describe("overlay nudges", () => {
     const moved = buildTimeline(editOf({ overlays: [ov(300)] }), transcriptOf(ws), [clip("c1", 3)], config()).overlays[0]!;
     near(moved.start - base.start, 0.3);
     near(moved.end - base.end, 0.3);
+  });
+});
+
+describe("snapping never clips a kept word", () => {
+  it("a filler cut that ends exactly where the next kept word starts keeps that word's onset", () => {
+    // live run: "field, um, chasing" with "um," cut at its exact word bounds (25.68–26.32)
+    const ws = words("c1", [["field,", 25.28, 25.68], ["um,", 25.68, 26.32], ["chasing", 26.32, 26.72], ["the", 26.72, 26.8]]);
+    const tl = buildTimeline(editOf({ cuts: [cut("c1", 25.68, 26.32)] }), transcriptOf(ws), [clip("c1", 30)], config(30));
+    const seg = tl.segments.find((x) => x.end > 26.5)!;
+    expect(seg.start).toBeLessThanOrEqual(26.32); // 26.32 * 30 = 789.6 -> frame 789, not 790
+    expect(sourceToOutput(tl, "c1", 26.32)).not.toBeNull();
   });
 });

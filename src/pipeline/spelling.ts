@@ -4,8 +4,9 @@
 // punctuation and case). When one script word was spoken as several transcript words, the first gets
 // the script word and the rest get "" (srtFromTimeline merges "" into the previous word); when one
 // transcript word covers several script words, it gets them all joined by spaces.
-// Only clean correspondences are mapped: every token of the script word and of each transcript word
-// involved must be matched, contiguously. Anything else keeps the transcript's own text.
+// Exact correspondences are mapped first (every token matched, contiguously). Then clean substitutions
+// between two matched words — a misheard word, or one word heard as two — take the script's spelling.
+// Anything else (ad-libs, skipped lines, long mismatches) keeps the transcript's own text.
 import { FILLER_WORDS, normalizeTranscriptWords, normalizeWords } from "../core/normalize.ts";
 import type { Edit, ScriptDoc, Transcript, Word } from "../core/schema.ts";
 import { indexWords, wordsInRange } from "../core/timeline.ts";
@@ -84,6 +85,7 @@ export function alignSpelling(scriptWords: string[], words: Pick<Word, "id" | "t
   });
   const fullyMatched = (wi: number) => (wordTokens.get(wi) ?? []).every((ti) => tMatched[ti]);
 
+  const anchors: { j: number; first: number; last: number }[] = []; // script word j ↔ spoken words first..last
   let si = 0;
   for (let j = 0; j < scriptWords.length; j++) {
     const tis = sMatch.slice(si, si + sCount[j]!);
@@ -100,6 +102,30 @@ export function alignSpelling(scriptWords: string[], words: Pick<Word, "id" | "t
     if (existing === undefined) map.set(head!, scriptWords[j]!);
     else if (existing !== "") map.set(head!, `${existing} ${scriptWords[j]}`);
     for (const id of rest) if (!map.get(id)) map.set(id, "");
+    anchors.push({ j, first: Math.min(...wis), last: Math.max(...wis) });
+  }
+
+  // Second pass: clean substitutions between two anchors. A misheard word ("Cloed" for "Claude.") or a
+  // split/merged one ("min set" for "mindset,") sits alone in the gap between matched words on both
+  // sides: 1–2 script words against 1–2 spoken words. Bigger or one-sided gaps are ad-libs or skips.
+  const isFiller = (wi: number) => normalizeWords(words[wi]!.text).every((t) => FILLER_WORDS.has(t));
+  const bounds = [{ j: -1, first: -1, last: -1 }, ...anchors.sort((a, b) => a.j - b.j), { j: scriptWords.length, first: words.length, last: words.length }];
+  for (let k = 0; k + 1 < bounds.length; k++) {
+    const a = bounds[k]!, b = bounds[k + 1]!;
+    if (b.first <= a.last) continue;
+    const gapS = scriptWords.slice(a.j + 1, b.j);
+    const gapW: number[] = [];
+    for (let wi = a.last + 1; wi < b.first; wi++) if (!isFiller(wi)) gapW.push(wi);
+    if (!gapS.length || !gapW.length || gapS.length > 2 || gapW.length > 2) continue;
+    if (gapW.some((wi) => map.has(words[wi]!.id))) continue;
+    // Only true mishearings: if any spoken token in the gap matched the script, the words are partly the
+    // same ("twenty bucks" for "$20") and the speaker's own words stay.
+    if (gapW.some((wi) => (wordTokens.get(wi) ?? []).some((ti) => tMatched[ti]))) continue;
+    if (gapW.length === 1) map.set(words[gapW[0]!]!.id, gapS.join(" "));
+    else if (gapS.length === 1) {
+      map.set(words[gapW[0]!]!.id, gapS[0]!);
+      map.set(words[gapW[1]!]!.id, "");
+    } else gapW.forEach((wi, i) => map.set(words[wi]!.id, gapS[i]!));
   }
 }
 
