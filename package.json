@@ -1,0 +1,48 @@
+{
+  "name": "fde-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Script-aware video editor: match a talking-head recording to its script, cut fillers and bad takes, drop in HyperFrames graphics, render the final MP4.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"pnpm dev:server\" \"pnpm dev:web\"",
+    "dev:server": "tsx watch --env-file-if-exists=.env src/server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "tsx --env-file-if-exists=.env src/server/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "typecheck": "tsc --noEmit",
+    "schemas": "tsx scripts/build-schemas.ts",
+    "fixture": "tsx scripts/make-fixture.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "execa": "10.1.0",
+    "gsap": "3.15.0",
+    "hono": "4.13.13",
+    "hyperframes": "0.8.134",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "concurrently": "10.0.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}

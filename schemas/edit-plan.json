@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "takes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sentenceIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "chosen": {
+            "type": "object",
+            "properties": {
+              "startWordId": {
+                "type": "string"
+              },
+              "endWordId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "startWordId",
+              "endWordId"
+            ],
+            "additionalProperties": false
+          },
+          "alternates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startWordId": {
+                  "type": "string"
+                },
+                "endWordId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "startWordId",
+                "endWordId"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentenceIds",
+          "chosen",
+          "alternates",
+          "why"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "adlibs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startWordId": {
+            "type": "string"
+          },
+          "endWordId": {
+            "type": "string"
+          },
+          "keep": {
+            "type": "boolean"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startWordId",
+          "endWordId",
+          "keep",
+          "why"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "wordCuts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startWordId": {
+            "type": "string"
+          },
+          "endWordId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "filler",
+              "stumble",
+              "false-start",
+              "repeat"
+            ]
+          }
+        },
+        "required": [
+          "startWordId",
+          "endWordId",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fillerGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fillerId": {
+            "type": "string"
+          },
+          "cut": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fillerId",
+          "cut"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "cues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cueId": {
+            "type": "string"
+          },
+          "include": {
+            "type": "boolean"
+          },
+          "anchorWordId": {
+            "type": "string"
+          },
+          "endWordId": {
+            "type": "string"
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "side",
+              "split",
+              "full"
+            ]
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right"
+            ]
+          },
+          "brief": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cueId",
+          "include",
+          "anchorWordId",
+          "endWordId",
+          "layout",
+          "brief"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "takes",
+    "adlibs",
+    "wordCuts",
+    "fillerGaps",
+    "cues",
+    "notes"
+  ],
+  "additionalProperties": false
+}

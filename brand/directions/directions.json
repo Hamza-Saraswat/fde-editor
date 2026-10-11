@@ -1,0 +1,86 @@
+[
+  {
+    "id": "a-field-notes",
+    "name": "Field Notes",
+    "pitch": "An engineer's notebook. Warm paper cards, an editorial serif voice, mono annotations. Reads as thoughtful and human.",
+    "fonts": {
+      "display": "Newsreader",
+      "label": "IBM Plex Mono"
+    },
+    "t": {
+      "card": "#F4EFE6",
+      "fg": "#17140F",
+      "muted": "#6B6358",
+      "accent": "#E8501A",
+      "accent2": "#2F5D50",
+      "line": "#D9D0C2",
+      "radius": "10px",
+      "shadow": "0 24px 60px rgba(0,0,0,.38)",
+      "displayWeight": 600,
+      "displayCase": "none",
+      "displayTracking": "-0.015em",
+      "labelWeight": 500,
+      "chip": "#E8501A",
+      "chipFg": "#FFF8F0",
+      "check": "✓",
+      "cardBorder": "1px solid #E4DCCF",
+      "texture": "none"
+    }
+  },
+  {
+    "id": "b-prod-console",
+    "name": "Prod Console",
+    "pitch": "Production dashboards. Dark glass panels, a lime 'it's live' signal, status chips and mono data. Reads as shipped, real, technical.",
+    "fonts": {
+      "display": "Schibsted Grotesk",
+      "label": "JetBrains Mono"
+    },
+    "t": {
+      "card": "rgba(11,14,19,.92)",
+      "fg": "#E9EEF4",
+      "muted": "#8A97A8",
+      "accent": "#B8F54A",
+      "accent2": "#4FD1FF",
+      "line": "#263040",
+      "radius": "6px",
+      "shadow": "0 24px 60px rgba(0,0,0,.45)",
+      "displayWeight": 800,
+      "displayCase": "none",
+      "displayTracking": "-0.025em",
+      "labelWeight": 500,
+      "chip": "rgba(184,245,74,.14)",
+      "chipFg": "#B8F54A",
+      "check": "✓",
+      "cardBorder": "1px solid #263040",
+      "texture": "none"
+    }
+  },
+  {
+    "id": "c-blueprint",
+    "name": "Blueprint",
+    "pitch": "Systems drawings. Blueprint-blue panels on a fine grid, condensed caps, dimension lines and a safety-yellow accent. Reads as architecture and how-it-works.",
+    "fonts": {
+      "display": "Oswald",
+      "label": "Space Mono"
+    },
+    "t": {
+      "card": "rgba(10,36,82,.94)",
+      "fg": "#F2F7FF",
+      "muted": "#9DBCE6",
+      "accent": "#FFC93C",
+      "accent2": "#7DB8FF",
+      "line": "#3D6BB0",
+      "radius": "0px",
+      "shadow": "0 24px 60px rgba(0,0,0,.40)",
+      "displayWeight": 600,
+      "displayCase": "uppercase",
+      "displayTracking": "0.01em",
+      "labelWeight": 700,
+      "chip": "#FFC93C",
+      "chipFg": "#0A2452",
+      "check": "■",
+      "cardBorder": "1.5px solid #3D6BB0",
+      "texture": "repeating-linear-gradient(0deg, rgba(125,184,255,.10) 0 1px, transparent 1px 36px), repeating-linear-gradient(90deg, rgba(125,184,255,.10) 0 1px, transparent 1px 36px)"
+    }
+  }
+]

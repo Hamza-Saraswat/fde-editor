@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Per-video working folders: recordings, screenshots (job posts, recruiter messages),
+# transcripts and renders. Never commit these to the public repo.
+/projects/
+*.mov
+*.mp4
+*.m4a
+*.wav
+*.mp3
+!test/fixtures/**/*.mp3
+
+# Spike scratch output
+/spikes/out/
+
+.DS_Store
+
+# Brand board snapshots (regenerate with make-boards.mjs)
+/brand/directions/*/snapshots/

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=2560, height=1440" />
+    <script src="gsap.min.js"></script>
+    <style>
+      html, body { margin: 0; background: transparent; }
+      #card {
+        position: absolute; right: 160px; top: 420px; width: 1100px; padding: 56px 64px;
+        border-radius: 28px; background: rgba(12, 14, 20, 0.92); color: #f4f1ea;
+        font: 600 64px/1.15 -apple-system, "Helvetica Neue", sans-serif; opacity: 0;
+      }
+      #card small { display: block; margin-top: 20px; font-size: 34px; font-weight: 500; color: #ffb547; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="5" data-width="2560" data-height="1440">
+      <div id="card" class="clip" data-start="0" data-duration="5" data-track-index="1">
+        AI Engineer<small>Two jobs, one title</small>
+      </div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#card", { opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 0.3)
+        .to("#card", { opacity: 0, x: 60, duration: 0.4, ease: "power2.in" }, 4.4);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

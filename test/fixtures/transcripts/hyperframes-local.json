@@ -1,0 +1,17 @@
+[
+  { "text": "Search", "start": 0.0, "end": 0.42, "id": "w0" },
+  { "text": "AI", "start": 0.42, "end": 0.71, "id": "w1" },
+  { "text": "engineer", "start": 0.71, "end": 1.18, "id": "w2" },
+  { "text": "on", "start": 1.18, "end": 1.31, "id": "w3" },
+  { "text": "LinkedIn", "start": 1.31, "end": 1.86, "id": "w4" },
+  { "text": "right", "start": 1.86, "end": 2.07, "id": "w5" },
+  { "text": "now,", "start": 2.07, "end": 2.39, "id": "w6" },
+  { "text": "and,", "start": 2.62, "end": 2.81, "id": "w7" },
+  { "text": "um,", "start": 2.95, "end": 3.33, "id": "w8" },
+  { "text": "you'll", "start": 3.61, "end": 3.84, "id": "w9" },
+  { "text": "find", "start": 3.84, "end": 4.1, "id": "w10" },
+  { "text": "two", "start": 4.1, "end": 4.32, "id": "w11" },
+  { "text": "completely", "start": 4.32, "end": 4.88, "id": "w12" },
+  { "text": "different", "start": 4.88, "end": 5.29, "id": "w13" },
+  { "text": "jobs.", "start": 5.29, "end": 5.96, "id": "w14" }
+]

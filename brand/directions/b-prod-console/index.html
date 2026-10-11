@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=2560, height=1440" />
+<script src="gsap.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; background: #0b0b0c; }
+  #root { position: relative; width: 2560px; height: 1440px; overflow: hidden;
+    background: radial-gradient(1200px 900px at 22% 55%, #4a3b2c 0%, #2a221b 45%, #141110 100%); }
+  .speaker { position: absolute; left: 330px; top: 360px; width: 520px; height: 1080px; }
+  .speaker .head { position:absolute; left:140px; top:60px; width:240px; height:290px; border-radius:50%; background:#6b5442; filter: blur(2px); }
+  .speaker .body { position:absolute; left:0; top:330px; width:520px; height:760px; border-radius:260px 260px 0 0; background:#3b3f4a; filter: blur(2px); }
+  .tag { position:absolute; left:470px; top:250px; font: 500 22px/1 'IBM Plex Mono', monospace; color: rgba(255,255,255,.35); letter-spacing:.2em; }
+  .el { position: absolute; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="2" data-width="2560" data-height="1440">
+  <div class="clip" id="scene" data-start="0" data-duration="2" data-track-index="1" style="position:absolute;inset:0;">
+    <div class="speaker"><div class="head"></div><div class="body"></div></div>
+    <div class="tag">YOU · LEFT THIRD</div>
+
+    <!-- lower-third over the speaker -->
+    <div class="el" style="left:120px;top:1110px;background:rgba(11,14,19,.92);background-image:none;color:#E9EEF4;border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #263040;padding:28px 40px;min-width:760px;">
+      <div style="font-family:'Schibsted Grotesk',serif;font-weight:800;text-transform:none;letter-spacing:-0.025em;font-size:58px;line-height:1.05;">Hamza Saraswat</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;margin-top:12px;color:#B8F54A;">AI Engineer · builds production AI</div>
+    </div>
+
+    <!-- title card -->
+    <div class="el" style="left:1040px;top:110px;width:1400px;background:rgba(11,14,19,.92);background-image:none;color:#E9EEF4;border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #263040;padding:44px 56px;">
+      
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;">Video 1 · What is an AI engineer?</div>
+      <div style="font-family:'Schibsted Grotesk',serif;font-weight:800;text-transform:none;letter-spacing:-0.025em;font-size:120px;line-height:1.0;margin-top:18px;">Two jobs. <span style="color:#B8F54A;">One title.</span></div>
+    </div>
+
+    <!-- two job cards -->
+    <div class="el" style="left:1040px;top:470px;width:680px;background:rgba(11,14,19,.92);background-image:none;color:#E9EEF4;border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #263040;padding:36px 40px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;letter-spacing:.06em;padding:8px 16px;border-radius:999px;background:rgba(184,245,74,.14);color:#B8F54A;">CARD A</span><span style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;font-size:22px;">AI engineer</span></div>
+      <div style="font-family:'Schibsted Grotesk',serif;font-weight:800;text-transform:none;letter-spacing:-0.025em;font-size:54px;line-height:1.08;margin-top:22px;">AI-powered developer</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:28px;color:#8A97A8;margin-top:18px;">Copilot · Claude · Node.js</div>
+    </div>
+    <div class="el" style="left:1760px;top:470px;width:680px;background:rgba(11,14,19,.92);background-image:none;color:#E9EEF4;border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #263040;padding:36px 40px;outline:3px solid #B8F54A;outline-offset:-3px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;letter-spacing:.06em;padding:8px 16px;border-radius:999px;background:rgba(184,245,74,.14);color:#B8F54A;">CARD B</span><span style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;font-size:22px;">AI engineer</span></div>
+      <div style="font-family:'Schibsted Grotesk',serif;font-weight:800;text-transform:none;letter-spacing:-0.025em;font-size:54px;line-height:1.08;margin-top:22px;">Applied AI engineer</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:28px;color:#8A97A8;margin-top:18px;">RAG · agents · cross-functional</div>
+    </div>
+
+    <!-- checklist -->
+    <div class="el" style="left:1040px;top:820px;width:680px;background:rgba(11,14,19,.92);background-image:none;color:#E9EEF4;border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #263040;padding:34px 40px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;">The skills</div>
+      <div style="display:flex;align-items:center;gap:22px;padding:16px 0;border-bottom:1px solid #263040;font-family:'Schibsted Grotesk',serif;font-size:40px;">
+      <span style="width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #B8F54A;border-radius:8px;color:#B8F54A;font-size:30px;font-family:'JetBrains Mono',monospace;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B8F54A" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></span>Call a model API</div><div style="display:flex;align-items:center;gap:22px;padding:16px 0;border-bottom:1px solid #263040;font-family:'Schibsted Grotesk',serif;font-size:40px;">
+      <span style="width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #B8F54A;border-radius:8px;color:#B8F54A;font-size:30px;font-family:'JetBrains Mono',monospace;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B8F54A" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></span>Retrieval (RAG)</div><div style="display:flex;align-items:center;gap:22px;padding:16px 0;border-bottom:1px solid #263040;font-family:'Schibsted Grotesk',serif;font-size:40px;color:#8A97A8;">
+      <span style="width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #263040;border-radius:8px;color:#B8F54A;font-size:30px;font-family:'JetBrains Mono',monospace;"></span>Evals</div><div style="display:flex;align-items:center;gap:22px;padding:16px 0;border-bottom:1px solid #263040;font-family:'Schibsted Grotesk',serif;font-size:40px;color:#8A97A8;">
+      <span style="width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #263040;border-radius:8px;color:#B8F54A;font-size:30px;font-family:'JetBrains Mono',monospace;"></span>Ship to production</div>
+    </div>
+
+    <!-- definition card -->
+    <div class="el" style="left:1760px;top:820px;width:680px;background:rgba(11,14,19,.92);background-image:none;color:#E9EEF4;border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.45);border:1px solid #263040;padding:34px 40px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;color:#4FD1FF;">Definition</div>
+      <div style="font-family:'Schibsted Grotesk',serif;font-weight:800;text-transform:none;letter-spacing:-0.025em;font-size:50px;line-height:1.1;margin-top:16px;">Forward Deployed Engineer</div>
+      <div style="font-family:'Schibsted Grotesk',serif;font-size:36px;line-height:1.35;margin-top:18px;color:#E9EEF4;opacity:.88;">An engineer who works inside the customer's world to make the product actually work there.</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:#8A97A8;font-size:20px;margin-top:20px;">Term coined at Palantir</div>
+    </div>
+
+    <!-- board footer: name, palette, type -->
+    <div class="el" style="left:0;right:0;bottom:0;height:86px;background:rgba(0,0,0,.72);display:flex;align-items:center;gap:36px;padding:0 60px;font:500 26px/1 'IBM Plex Mono', monospace;color:#d9d9d9;letter-spacing:.06em;">
+      <span style="color:#fff;font-weight:700;">PROD CONSOLE</span>
+      <span style="width:40px;height:40px;border-radius:6px;background:rgba(11,14,19,.92);border:1px solid rgba(255,255,255,.25);display:inline-block;"></span><span style="width:40px;height:40px;border-radius:6px;background:#E9EEF4;border:1px solid rgba(255,255,255,.25);display:inline-block;"></span><span style="width:40px;height:40px;border-radius:6px;background:#B8F54A;border:1px solid rgba(255,255,255,.25);display:inline-block;"></span><span style="width:40px;height:40px;border-radius:6px;background:#4FD1FF;border:1px solid rgba(255,255,255,.25);display:inline-block;"></span><span style="width:40px;height:40px;border-radius:6px;background:#8A97A8;border:1px solid rgba(255,255,255,.25);display:inline-block;"></span>
+      <span>Schibsted Grotesk + JetBrains Mono</span>
+    </div>
+  </div>
+</div>
+<script>
+  window.__timelines = window.__timelines || {};
+  const tl = gsap.timeline({ paused: true });
+  tl.from(".el", { opacity: 0, y: 24, duration: 0.4, stagger: 0.05, ease: "power2.out" }, 0);
+  window.__timelines["main"] = tl;
+</script>
+</body>
+</html>

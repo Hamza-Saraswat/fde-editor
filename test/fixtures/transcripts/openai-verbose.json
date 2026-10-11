@@ -1,0 +1,37 @@
+{
+  "task": "transcribe",
+  "language": "english",
+  "duration": 6.2,
+  "text": "Search AI engineer on LinkedIn right now, and, um, you'll find two completely different jobs.",
+  "words": [
+    { "word": "Search", "start": 0.0, "end": 0.4399999976158142 },
+    { "word": "AI", "start": 0.4399999976158142, "end": 0.7400000095367432 },
+    { "word": "engineer", "start": 0.7400000095367432, "end": 1.159999966621399 },
+    { "word": "on", "start": 1.159999966621399, "end": 1.2999999523162842 },
+    { "word": "LinkedIn", "start": 1.2999999523162842, "end": 1.8799999952316284 },
+    { "word": "right", "start": 1.8799999952316284, "end": 2.059999942779541 },
+    { "word": "now", "start": 2.059999942779541, "end": 2.380000114440918 },
+    { "word": "and", "start": 2.6600000858306885, "end": 2.799999952316284 },
+    { "word": "um", "start": 2.9800000190734863, "end": 3.299999952316284 },
+    { "word": "you'll", "start": 3.5999999046325684, "end": 3.859999895095825 },
+    { "word": "find", "start": 3.859999895095825, "end": 4.079999923706055 },
+    { "word": "two", "start": 4.079999923706055, "end": 4.300000190734863 },
+    { "word": "completely", "start": 4.300000190734863, "end": 4.900000095367432 },
+    { "word": "different", "start": 4.900000095367432, "end": 5.300000190734863 },
+    { "word": "jobs", "start": 5.300000190734863, "end": 5.940000057220459 }
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "seek": 0,
+      "start": 0.0,
+      "end": 6.2,
+      "text": " Search AI engineer on LinkedIn right now, and, um, you'll find two completely different jobs.",
+      "tokens": [50364, 17180, 7318, 11403, 322, 22652, 558, 586, 11, 293, 11, 1105, 11, 291, 603, 915, 732, 2584, 819, 4782, 13, 50674],
+      "temperature": 0.0,
+      "avg_logprob": -0.2154,
+      "compression_ratio": 1.0632,
+      "no_speech_prob": 0.0121
+    }
+  ]
+}
