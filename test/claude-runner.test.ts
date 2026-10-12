@@ -180,3 +180,15 @@ process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_err
     expect(input.takes).toEqual(["s0.1 aligner=0 | #0 c1 w0-w2 score=0.90"]);
   });
 });
+
+describe("lockdown flags", () => {
+  it("limits the tool set to the allow-list's tools, denies anything not pre-approved, runs restricted", () => {
+    const args = buildClaudeArgs({ prompt: "p", model: "opus", maxTurns: 3, cwd: "/tmp", allowedTools: ["Read", "Glob", "Write(//x/index.html)", "Edit(//x/index.html)"] });
+    const at = (flag: string) => args[args.indexOf(flag) + 1];
+    expect(at("--tools")).toBe("Read,Glob,Write,Edit");
+    expect(at("--permission-mode")).toBe("dontAsk");
+    expect(args).toContain("--restricted");
+    expect(args).not.toContain("Bash");
+    expect(args.join(" ")).not.toMatch(/dangerously|bypassPermissions/);
+  });
+});

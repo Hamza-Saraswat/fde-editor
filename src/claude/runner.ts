@@ -66,6 +66,12 @@ export function buildClaudeArgs(opts: RunClaudeOptions): string[] {
     "--max-turns", String(opts.maxTurns),
     "--strict-mcp-config", // no MCP servers: faster start, nothing to authenticate
   ];
+  // Lock the run down. --allowedTools only PRE-APPROVES; on its own it does not stop other tools
+  // (a live check ran Bash with only "Read" allowed). So: --tools makes only the needed tools exist,
+  // dontAsk denies anything not pre-approved instead of prompting/auto-approving, and --restricted
+  // ignores user/project settings and confines file tools to the cwd + --add-dir folders.
+  const tools = [...new Set(opts.allowedTools.map((t) => t.replace(/\(.*$/, "")))];
+  args.push("--tools", tools.join(","), "--permission-mode", "dontAsk", "--restricted");
   if (opts.allowedTools.length) args.push("--allowedTools", ...opts.allowedTools);
   if (opts.jsonSchema) args.push("--json-schema", JSON.stringify(stripMetaSchema(opts.jsonSchema)));
   if (opts.appendSystemPromptFile) args.push("--append-system-prompt-file", opts.appendSystemPromptFile);

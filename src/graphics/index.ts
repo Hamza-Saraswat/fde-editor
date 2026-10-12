@@ -7,7 +7,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import type { ClaudeEvent } from "../claude/runner.ts";
 import { runClaude } from "../claude/runner.ts";
-import { BRAND_DIR, HYPERFRAMES_BIN, PROMPTS_DIR, REPO_ROOT, projectPaths } from "../core/paths.ts";
+import { BRAND_DIR, PROMPTS_DIR, REPO_ROOT, projectPaths } from "../core/paths.ts";
 import {
   EditSchema, ScriptDocSchema, TranscriptSchema, overlaySide,
   type Asset, type Edit, type Overlay, type Project, type Timeline, type Transcript,
@@ -181,11 +181,9 @@ export async function prepareGraphic(slug: string, cueId: string, opts: Pick<Bui
   const base = {
     slug, cueId, dir, durationSec: place.durationSec, side, layout: ov.layout, fingerprint: fp,
     systemPromptFile: join(PROMPTS_DIR, "graphic.md"),
-    allowedTools: [
-      "Read", "Glob", "Grep", "Skill",
-      `Write(/${dir}/index.html)`, `Edit(/${dir}/index.html)`,
-      `Bash(${HYPERFRAMES_BIN} lint:*)`, `Bash(${HYPERFRAMES_BIN} check:*)`,
-    ],
+    // No shell at all: the run reads, then writes exactly one file. The server lints/checks it
+    // afterwards and sends any errors back for one fix-up round (see buildGraphic).
+    allowedTools: ["Read", "Glob", "Grep", "Skill", `Write(/${dir}/index.html)`, `Edit(/${dir}/index.html)`],
   };
   const prev = await readStored(slug, cueId);
   const sameLength = prev?.durationSec !== undefined && Math.abs(prev.durationSec - place.durationSec) <= STALE_DURATION_SEC;
@@ -222,12 +220,11 @@ export async function prepareGraphic(slug: string, cueId: string, opts: Pick<Bui
     words: wordsInWindow(ctx, place.start, place.end),
     assets,
     previous: existsSync(join(dir, "index.html")) ? "index.html" : null,
-    commands: [`${HYPERFRAMES_BIN} lint ${dir}`, `${HYPERFRAMES_BIN} check ${dir}`],
     brandSpec: join(BRAND_DIR, "BRAND.md"),
     templatesDir: join(BRAND_DIR, "templates"),
   };
   await writeFile(join(dir, "input.json"), JSON.stringify(input, null, 2) + "\n");
-  const prompt = `Build the motion graphic for cue ${cueId}. Your graphic folder is ${dir}. Read ${join(dir, "input.json")} first, then ${input.brandSpec}, then the closest template in ${input.templatesDir}. Write ${join(dir, "index.html")} and validate it with the two commands in input.json.`;
+  const prompt = `Build the motion graphic for cue ${cueId}. Your graphic folder is ${dir}. Read ${join(dir, "input.json")} first, then ${input.brandSpec}, then the closest template in ${input.templatesDir}. Write ${join(dir, "index.html")}; the server validates it after you finish.`;
   return { ...base, prompt, upToDate: null };
 }
 

@@ -30,14 +30,12 @@ see the video; everything you need is in `input.json`.
 Write exactly one file: `index.html` in your graphic folder. `kit/` and `assets/` are already there;
 reference them with relative paths. Do not create or edit any other file.
 
-## Validate before you finish
+## Validation
 
-Run both commands (the exact strings are in `input.json → commands`) and fix every error they report:
-
-- `… hyperframes lint <folder>`
-- `… hyperframes check <folder>`
-
-Warnings about missing ids or nested structure are acceptable. Errors are not.
+You can't run commands. When you finish, the server runs `hyperframes lint` and `hyperframes check` on
+your file. If they report errors, you get them back for one fix-up round, so get the contract right the
+first time: read `hyperframes-core` (via the Skill tool) if unsure. Warnings about missing ids or nested
+structure are acceptable; errors are not.
 
 ## Checklist
 
@@ -46,6 +44,6 @@ Warnings about missing ids or nested structure are acceptable. Errors are not.
 - [ ] Each entrance lands about 0.1 s before its word in `words[]`. The exit ends exactly at `durationSec`.
 - [ ] One orange emphasis at most. Readable text is 34 px or larger. No invented facts.
 - [ ] Screenshots: crop, blur and highlight applied exactly as given. Nothing identifying is visible.
-- [ ] Lint and check pass.
+- [ ] It follows the HyperFrames contract in BRAND.md, so lint and check will pass.
 
 Finish with one line describing what you built and its beats.
