@@ -58,6 +58,7 @@ const STAGE_OPTIONS: Partial<Record<StageName, z.ZodType>> = {
     force: z.boolean().optional(),
   }),
   xclips: z.object({ count: z.number().int().min(1).max(3).optional() }),
+  preview: z.object({ sweep: z.boolean().optional() }), // sweep: listen back and cut leftover ums
 };
 
 async function jsonBody(c: Context, optional = false): Promise<unknown> {

@@ -428,10 +428,17 @@ describe.skipIf(!hasFfmpeg)("transcribeProject", () => {
     expect(t.silences[0]!.start).toBeCloseTo(1.0, 1);
 
     // gap "there"→"um" is 0.02 s (too short); "um"→"world" is mostly silent; "Hello"→"there" is voiced
-    expect(t.fillers).toEqual([
-      { id: "f0", clipId: "c1", start: 0.34, end: 0.66, kind: "gap", afterWordId: "w0" },
-      { id: "f1", clipId: "c1", start: 0.92, end: 0.98, kind: "token", wordId: "w2" },
-    ]);
+    expect(t.fillers).toHaveLength(2);
+    expect(t.fillers[0]).toEqual({ id: "f0", clipId: "c1", start: 0.34, end: 0.66, kind: "gap", afterWordId: "w0" });
+    // the "um" token (stamped 0.92–0.98) is snapped to the quiet valleys in the audio around it
+    const um = t.fillers[1]!;
+    expect(um).toMatchObject({ id: "f1", clipId: "c1", kind: "token", wordId: "w2" });
+    expect(um.start).toBeGreaterThanOrEqual(0.92 - 0.16);
+    expect(um.start).toBeLessThanOrEqual(0.96);
+    expect(um.end).toBeGreaterThanOrEqual(0.94);
+    expect(um.end).toBeLessThanOrEqual(0.98 + 0.16);
+    const w2 = t.words.find((w) => w.id === "w2")!;
+    expect([w2.start, w2.end]).toEqual([um.start, um.end]); // the word moves with its candidate
 
     expect(existsSync(rawCachePath(paths, { name: "fake-test" }, "c1"))).toBe(true);
     expect(existsSync(join(paths.transcriptsDir, "silences-c1.json"))).toBe(true);

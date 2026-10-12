@@ -194,7 +194,7 @@ describe("plan stage", () => {
     const msg = await planStage(SLUG, ctx, deps);
     expect(events.filter((e) => e.type === "claude")).toEqual(claudeEvents.map((event) => ({ type: "claude", stage: "plan", event })));
     expect(events).toContainEqual({ type: "log", stage: "plan", line: "warning: take 3: unknown word id w99; skipped" });
-    expect(chained).toEqual([{ stage: "preview", options: undefined }]);
+    expect(chained).toEqual([{ stage: "preview", options: { sweep: true } }]);
     expect(msg).toBe("Edit planned: 1 take group · 0 cuts · 3 graphics · 1 warning · $0.42");
     expect(progress.some(([, m]) => m === "Claude: Read plan-input.json")).toBe(true);
   });

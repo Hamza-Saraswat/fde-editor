@@ -100,3 +100,35 @@ buttons on the production server. Model: claude-opus-5.
 probe with just `Read` allowed still ran Bash. Every run now passes `--tools` (only the allow-list's tools
 exist), `--permission-mode dontAsk` and `--restricted`. Graphics runs no longer get a shell.
 Verified live: Bash is absent for read-only runs, and a write outside the one allowed file is denied.
+
+## (h) Cut quality on Hamza's real voice (2026-10-11)
+
+No script-read recording existed yet, so the test used a 3-minute excerpt of a real, unscripted take
+(`Untitled video - 30 Sept 2026.mp4`, 60–240 s). A matching script was written from what he actually said,
+with fillers removed, plus three graphic cues. Everything stayed in the gitignored `projects/` folder.
+The excerpt went through the full pipeline, including a real `claude -p` plan
+($0.93; 44 cuts: 31 fillers, 3 false starts, 3 repeats, 3 of 7 ad-libs).
+
+**Measurement:** `spikes/roundtrip.ts` re-transcribes the *edited* audio and compares it with the words the
+edit meant to keep.
+
+| Version | Edited length | Word error vs intended | Kept words with a clipped onset | um/uh still audible |
+|---|---|---|---|---|
+| Claude's plan, filler cuts at ASR word stamps | 145.7 s | 3.0 % | 0 | **10** |
+| + filler edges snapped to energy valleys, + listen-back sweep | 143.5 s | 3.6 % | 0 | **4** |
+
+The word-error figures are Parakeet's own variation ("eval"/"evals", "Claude"/"cloud"); no words were lost.
+
+**Why ums survived, and the fixes:**
+1. **Coarse ASR timing.** Parakeet's word stamps are coarse (~80 ms), so cutting exactly at them left the
+   edges of an "uh". Fix: filler words, and their neighbours' boundaries, now snap to the quietest 10 ms
+   nearby (`src/media/energy.ts`, `src/transcribe/refine.ts`).
+2. **Fillers missing from the first transcript.** The first pass folded some fillers into a neighbouring word
+   ("question." stamped across 0.96 s). Fix: after Claude's plan, the preview is re-transcribed, and each
+   um/uh still heard is mapped back to the source and cut. The sweep never takes a kept word, never overrules
+   a kept filler or a cut the user made, and makes up to 2 passes (`src/transcribe/sweep.ts`).
+
+**The 4 that remain:** in three, the "uh" runs straight into the next word, and cutting further would clip
+that word, which the sweep correctly refuses. The fourth falls where a cut join makes its position ambiguous.
+These are short fragments, not whole ums. Removing them would need a crossfade or a pickup line, not a
+harder cut. **A listening check by Hamza on his own material is still the real judge.**

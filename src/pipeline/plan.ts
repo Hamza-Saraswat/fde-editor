@@ -31,7 +31,7 @@ export const planStage: StageFn = async (slug, ctx, deps) => {
     },
   });
   for (const w of res.warnings) ctx.emit({ type: "log", stage: "plan", line: `warning: ${w}` });
-  ctx.chain("preview");
+  ctx.chain("preview", { sweep: true });
   const e = res.edit;
   const parts = [
     `Edit planned: ${plural(e.takeGroups.length, "take group")}`,

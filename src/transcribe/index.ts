@@ -1,6 +1,8 @@
 // Transcribe stage: run an ASR engine per clip (cached per engine+model, so switching engines never
 // re-runs or re-bills), merge everything into ONE transcript.json with project-unique word ids, and
 // attach detected silences and filler candidates.
+import { loadEnvelope, type Envelope } from "../media/energy.ts";
+import { refineFillerTokens } from "./refine.ts";
 import { existsSync } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -208,8 +210,15 @@ export async function transcribeProject(slug: string, opts: TranscribeOptions = 
     doneWeight += weight;
   }
 
-  const words = mergeClipWords(perClip);
-  const fillers = findFillerCandidates(words, silences, config);
+  const merged = mergeClipWords(perClip);
+  // Filler stamps from ASR are coarse; snap each filler word (and its neighbours) to the quiet valleys
+  // in the audio so cutting it takes the whole "uh" and nothing else.
+  const envelopes = new Map<string, Envelope>();
+  for (const clip of project.clips) {
+    const wav = [paths.asrWav(clip.id), paths.wav(clip.id)].find((f) => existsSync(f));
+    if (wav) envelopes.set(clip.id, await loadEnvelope(wav));
+  }
+  const { words, fillers } = refineFillerTokens(merged, findFillerCandidates(merged, silences, config), envelopes);
   const transcript = await writeJson(paths.transcript, TranscriptSchema, {
     engine: transcriber.engineKey, model: transcriber.model, words, silences, fillers,
   });

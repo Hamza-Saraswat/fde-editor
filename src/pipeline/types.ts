@@ -1,5 +1,6 @@
 // Shared shapes for the pipeline stages: the context a job hands each stage, and the injectable
 // dependencies (real module functions by default, fakes in tests).
+import { sweepResidualFillers } from "../transcribe/sweep.ts";
 import { ensureIntro, ensureOutro } from "../graphics/hyperframes.ts";
 import { alignScript } from "../core/aligner.ts";
 import { loadConfig } from "../core/store.ts";
@@ -41,6 +42,7 @@ export type PipelineDeps = {
   planXClips: typeof planXClips;
   ensureIntro: typeof ensureIntro;
   ensureOutro: typeof ensureOutro;
+  sweepResidualFillers: typeof sweepResidualFillers;
 };
 
 export const realDeps: PipelineDeps = {
@@ -59,6 +61,7 @@ export const realDeps: PipelineDeps = {
   planXClips,
   ensureIntro,
   ensureOutro,
+  sweepResidualFillers,
 };
 
 export const withDeps = (deps?: Partial<PipelineDeps>): PipelineDeps => ({ ...realDeps, ...deps });

@@ -68,6 +68,7 @@ export type StageOptions = {
   graphics?: { cueIds?: string[]; note?: string; force?: boolean };
   render?: Record<string, never>;
   xclips?: { count?: number };
+  preview?: { sweep?: boolean }; // listen to the built preview and cut any um/uh still audible
 };
 export type RunStageBody = { options?: StageOptions[keyof StageOptions] };
 
