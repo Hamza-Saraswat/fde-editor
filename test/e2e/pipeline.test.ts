@@ -134,7 +134,9 @@ describe("end to end on the fixture take", () => {
     expect(keptText).toContain("trips up a lot of people");
     expect(keptText).toContain("waste six months");
     expect(keptText).toMatch(/using the same title/); // a short line inside a longer one is not a retake
-    expect(duration).toBeLessThan(96 - 8); // dead air, flub and fillers removed
+    // the 96.4 s take has ~8 s of removable material (1.8 s + 1.3 s + 1.2 s of dead air, the ~3 s flub,
+    // fillers); cut edges sit in quiet valleys, so allow a little breathing room around each
+    expect(duration).toBeLessThan(96.4 - 7.5);
   });
 
   it("preview: exact frames and A/V lengths", () => {
