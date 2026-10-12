@@ -81,3 +81,22 @@ Bugs this run found (all fixed, with regression tests):
    now say the brand's motion rules win, and the brief decides content and timing.
 4. **Needless rebuilds.** A graphic shifting by a frame or two marked it stale and asked for a Claude rebuild.
    Duration now only marks it stale beyond 0.25 s.
+
+## (g) Live run with the real `claude -p` (2026-10-11, after `claude auth login`; Max plan)
+
+New project `live-cli-check` (the fixture take, **centered** framing). Every stage was started from the UI's
+buttons on the production server. Model: claude-opus-5.
+
+| Step | Real result | Time | Cost* | Permission denials |
+|---|---|---|---|---|
+| Plan edit | 22 take groups, 8 cuts, 3 graphics, 0 warnings. g1 = **split** across both sides; g2 right, g3 left (alternating) | 156 s | $0.59 | 0 |
+| Graphics g1 / g2 / g3 | All three passed server lint/check **first time** (no fix-up round). Split cards on both sides, sides respected | 100 / 70 / 73 s (+ render) | $0.56 / $0.39 / $0.40 | 0 |
+| Render | 1:43 final with 3 graphics, intro and end card | ~30 s | — | — |
+| X clips | 2 clips (35.5 s, 44.5 s), captions burned in, clip 2 ends exactly where the end card starts | 49 s + render | $0.14 | 0 |
+
+*`total_cost_usd` as the CLI reports it. On a Max subscription this counts against plan usage, not billed per token.
+
+**Security finding, fixed before this run:** on its own, `--allowedTools` only pre-approves tools. A live
+probe with just `Read` allowed still ran Bash. Every run now passes `--tools` (only the allow-list's tools
+exist), `--permission-mode dontAsk` and `--restricted`. Graphics runs no longer get a shell.
+Verified live: Bash is absent for read-only runs, and a write outside the one allowed file is denied.
