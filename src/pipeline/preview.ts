@@ -29,16 +29,18 @@ export const previewStage: StageFn<PreviewStageOptions> = async (slug, ctx, deps
   if (ctx.options?.sweep) {
     ctx.progress(undefined, "Listening to the preview for leftover ums");
     // Up to two passes: cutting one um can make the next one audible in a different context.
-    let cut = 0, heard = 0;
+    let cut = 0, heard = 0, restored = 0;
     for (let pass = 1; pass <= 2; pass++) {
       const sw = await d.sweepResidualFillers(slug, { signal: ctx.signal });
       if (pass === 1) heard = sw.heardFillers;
       cut += sw.added;
-      if (!sw.added) break;
+      restored += sw.restored;
+      if (!sw.added && !sw.restored) break;
       ctx.emit({ type: "bundle-changed" });
       res = await build(`Rebuilding (pass ${pass}): `);
     }
     sweepNote = heard ? ` · listen-back cut ${cut} leftover ${cut === 1 ? "um" : "ums"}` : " · listen-back: no leftover ums";
+    if (restored) sweepNote += `, restored ${restored} ${restored === 1 ? "cut" : "cuts"} that clipped speech`;
   }
   return `Preview ready: ${fmtDuration(res.duration)} (${res.encoded} segments encoded, ${res.reused} reused)${sweepNote}`;
 };

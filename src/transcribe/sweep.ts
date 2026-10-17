@@ -1,4 +1,5 @@
-// Listen-back sweep: re-transcribe the EDITED preview and cut any um/uh that is still audible.
+// Listen-back sweep: re-transcribe the EDITED preview, cut any um/uh that is still audible, and restore
+// cuts that chopped through speech (leftovers.ts).
 // The first transcript misses some fillers (Parakeet folds a soft "um" into the word next to it); the
 // edited audio, heard in a different context, often reveals them. Each residual filler is mapped back
 // to its source time, its edges are moved to the quiet valleys, and it becomes an auto cut — unless it
@@ -13,9 +14,10 @@ import { loadConfig, loadProject, readJson, writeJson } from "../core/store.ts";
 import { buildTimeline, keptWordIds } from "../core/timeline.ts";
 import { ffmpeg } from "../core/proc.ts";
 import { loadEnvelope, valley, voicedCore, type Envelope } from "../media/energy.ts";
+import { findLeftovers } from "./leftovers.ts";
 import { transcribeLocalFile } from "./local.ts";
 
-export type SweepResult = { heardFillers: number; added: number; skipped: number };
+export type SweepResult = { heardFillers: number; added: number; skipped: number; restored: number };
 
 /** A filler heard in the edited audio, with where the listen-back put the words either side (output seconds). */
 export type HeardFiller = { start: number; end: number; prevEnd?: number; nextStart?: number };
@@ -117,7 +119,7 @@ export async function sweepResidualFillers(slug: string, opts: { signal?: AbortS
   const [config, project, edit, transcript] = await Promise.all([
     loadConfig(), loadProject(slug), readJson(paths.edit, EditSchema), readJson(paths.transcript, TranscriptSchema),
   ]);
-  if (!existsSync(paths.preview)) return { heardFillers: 0, added: 0, skipped: 0 };
+  if (!existsSync(paths.preview)) return { heardFillers: 0, added: 0, skipped: 0, restored: 0 };
   const timeline = buildTimeline(edit, transcript, project.clips, config);
 
   const work = join(paths.cacheDir, "sweep");
@@ -141,6 +143,13 @@ export async function sweepResidualFillers(slug: string, opts: { signal?: AbortS
   }
   const { cuts: added, skipped } = planSweepCuts(residual, timeline, transcript, edit, envelopes);
   const fresh = added.filter((c) => !edit.cuts.some((x) => x.id === c.id));
-  if (fresh.length) await writeJson(paths.edit, EditSchema, { ...edit, version: edit.version + 1, cuts: [...edit.cuts, ...fresh] });
-  return { heardFillers: residual.length, added: fresh.length, skipped };
+  // cuts that chopped through speech (their words are still heard at the join): restore those words
+  const leftovers = findLeftovers(heard, timeline, transcript, edit);
+  const restore = new Map(leftovers.map((l) => [l.cutId, l]));
+  const cuts = edit.cuts.map((c) => {
+    const l = restore.get(c.id);
+    return l ? { ...c, enabled: false, note: `Restored: "${l.heard}" was still heard in the preview (the words run straight into the next one, so the cut only took part of them). Turn on to cut anyway.` } : c;
+  });
+  if (fresh.length || restore.size) await writeJson(paths.edit, EditSchema, { ...edit, version: edit.version + 1, cuts: [...cuts, ...fresh] });
+  return { heardFillers: residual.length, added: fresh.length, skipped, restored: restore.size };
 }
