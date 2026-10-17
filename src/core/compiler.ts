@@ -307,11 +307,19 @@ export function planToEdit(plan: EditPlan, ctx: CompileContext): CompileResult {
     if (side) ov.side = side;
     overlays.push(ov);
   }
+  // A required cue left out because its lines were never recorded (a partial take) is expected, not a warning.
+  const missing = new Set(candidates.missing);
+  const order = script.sentences.map((s) => s.id);
+  const unrecorded = (cue: (typeof script.cues)[number]) => {
+    if (!cue.afterSentenceId) return false;
+    const next = order[order.indexOf(cue.afterSentenceId) + 1];
+    return missing.has(cue.afterSentenceId) && (!next || missing.has(next));
+  };
   for (const cue of script.cues) {
     if (cue.optional) continue;
     const decision = plan.cues.find((c) => c.cueId === cue.id);
     if (!decision) warnings.push(`cue ${cue.id} (${cue.kind}) is not in the plan`);
-    else if (!decision.include) warnings.push(`cue ${cue.id} (${cue.kind}) is required but Claude left it out`);
+    else if (!decision.include && !unrecorded(cue)) warnings.push(`cue ${cue.id} (${cue.kind}) is required but Claude left it out`);
   }
 
   // ---------- chapters: one per ## section, at the first spoken sentence ----------

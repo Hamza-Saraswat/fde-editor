@@ -177,6 +177,18 @@ describe("planToEdit", () => {
     expect(new Set(next.cuts.map((c) => c.id)).size).toBe(next.cuts.length);
   });
 
+  it("warns about a required cue left out only when its lines were recorded", () => {
+    const g3 = { id: "g3", kind: "gfx" as const, optional: false, text: "card for the unrecorded line", flags: [], sectionId: "sec3", afterSentenceId: "s2.1", holdSection: false };
+    const withCues = { ...ctx, script: { ...script, cues: [...script.cues, g3] } };
+    const out = (cueId: string) => ({ cueId, include: false, anchorWordId: "w10", endWordId: "w13", layout: "side" as const, brief: "" });
+    // g3 follows s2.1, which was never recorded (a partial take): leaving it out is expected
+    const partialTake = planToEdit({ ...plan, cues: [...plan.cues, out("g3")] }, withCues);
+    expect(partialTake.warnings.some((w) => w.includes("g3"))).toBe(false);
+    // g1 follows s0.1, which was recorded: leaving it out is worth a warning
+    const skipped = planToEdit({ ...plan, cues: [out("g1"), ...plan.cues.slice(1), out("g3")] }, withCues);
+    expect(skipped.warnings.some((w) => w.includes("cue g1") && w.includes("left it out"))).toBe(true);
+  });
+
   it("gives a sentence Claude skipped the aligner's take", () => {
     const partial: EditPlan = { ...plan, takes: plan.takes.filter((t) => t.sentenceIds[0] !== "s0.2") };
     const res = planToEdit(partial, ctx);
