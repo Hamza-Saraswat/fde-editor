@@ -86,7 +86,8 @@ Long natural pauses are tightened automatically, so do not cut a gap just becaus
 Give one entry per cue in `cues`.
 
 - `include`: true for every required cue. For an `optional` cue, include it only if the line it
-  depends on was actually spoken and kept.
+  depends on was actually spoken and kept. False for any cue whose lines were never recorded (they
+  are in `missing`, for example because the recording stops partway through the script).
 - `anchorWordId`: the word where the graphic should appear, which is the moment its content is
   first spoken. If the cue has a `phrase`, anchor on the first word of that phrase as spoken.
   Otherwise the default is the first word of the sentence after `afterSentenceId`, but prefer the
@@ -110,7 +111,9 @@ Give one entry per cue in `cues`.
   the visual style hints in the cue, and animation beats tied to the spoken words, for example
   "card A slides in on 'one wants'; card B on 'the other'; highlight 'RAG' when he says 'RAG'".
   Keep the cue's own wording for on-screen text. Mention any [VERIFY]/[CONFIRM] flag so it is checked.
-  For a `broll` cue, describe the crop, highlights and redactions the screenshot needs.
+  For a `broll` cue, describe the crop, highlights and redactions the screenshot needs, and also list
+  the exact lines he reads from it (quoted from the script) with the word each highlight lands on. If
+  no screenshot is attached, the graphic is built as an animated excerpt card from those lines alone.
   Stay inside the channel's motion language (brand/BRAND.md): elements enter from the open-side edge
   and hold still between beats. Emphasis = a marker highlight, a tick or an outline, never pulsing,
   flashing, bouncing or looping. One orange emphasis per graphic. Don't prescribe colours or logos.

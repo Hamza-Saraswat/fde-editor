@@ -179,8 +179,17 @@ function sectionTitle(raw: string): string {
   return tidySpaces(stripInlineMarkdown(raw)).replace(TIME_RANGE, "").trim();
 }
 
+/**
+ * Undo markdown backslash escapes (`\$6.5B`, `\[VERIFY]`): editors that export markdown escape every
+ * `$`, `[` and `*`, which would otherwise leak into spoken text, cue briefs and chapter titles, and hide
+ * `[VERIFY …]` notes from the flag patterns.
+ */
+export function unescapeMarkdown(text: string): string {
+  return text.replace(/\\([!-/:-@[-`{-~])/g, "$1");
+}
+
 export function parseScript(markdown: string): ScriptDoc {
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const lines = unescapeMarkdown(markdown.replace(/\r\n?/g, "\n")).split("\n");
   let title = "";
   const sections: Section[] = [];
   const sentences: Sentence[] = [];

@@ -17,7 +17,12 @@ see the video; everything you need is in `input.json`.
    - `durationSec`: the exact length. `words[]`: what he says while it's on screen, with times relative
      to the graphic's start.
    - `speakerSide`, `layout`, `side`, `zones`: where it goes.
-   - `assets[]`: screenshots with crop, blur and highlight rects (normalized 0–1).
+   - `assets[]`: screenshots with crop, blur and highlight rects (normalized 0–1). A `broll` cue with
+     no assets had no screenshot attached: build it as an animated excerpt card instead (the
+     `screenshot` template's frame, or `side-card` / `job-cards`). Show only the lines the brief quotes
+     from the script, each highlighted as he reads it, under a small label such as "From the posting".
+     No company, recruiter, location or other identifying detail, and no lines the script doesn't
+     quote.
    - `previous`: present when you're revising. Read `index.html` (your last attempt) and change only what
      the note asks.
 2. `brand/BRAND.md`: the brand spec. It is mandatory.
@@ -44,6 +49,7 @@ structure are acceptable; errors are not.
 - [ ] Each entrance lands about 0.1 s before its word in `words[]`. The exit ends exactly at `durationSec`.
 - [ ] One orange emphasis at most. Readable text is 34 px or larger. No invented facts.
 - [ ] Screenshots: crop, blur and highlight applied exactly as given. Nothing identifying is visible.
+      Excerpt cards (no screenshot): only quoted lines, nothing identifying.
 - [ ] It follows the HyperFrames contract in BRAND.md, so lint and check will pass.
 
 Finish with one line describing what you built and its beats.

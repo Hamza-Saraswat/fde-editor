@@ -289,3 +289,24 @@ describe("parseScript on inline markdown", () => {
     expect(early.sentences.map((s) => s.id)).toEqual(["s0.1"]);
   });
 });
+
+describe("parseScript on exported markdown with backslash escapes", () => {
+  // Video 1 Script v2 came out of an editor that escapes every $ and [
+  const doc = parseScript([
+    "# Video",
+    "## 5. You don't need a \\$200 plan (9:45–10:40)",
+    "**SAY**",
+    "It costs \\$20 a month. And the cheaper coding plans. `\\[the RAG piece has to be live by publish day]`",
+    "> GFX: salary card: \"Anthropic FDE, posted base: \\$280K–\\$320K.\" `\\[VERIFY on record day]`",
+  ].join("\n"));
+
+  it("removes the escapes from titles, spoken text and cue briefs", () => {
+    expect(doc.sections[0]!.title).toBe("5. You don't need a $200 plan");
+    expect(doc.sentences.map((s) => s.text)).toEqual(["It costs $20 a month.", "And the cheaper coding plans."]);
+    expect(doc.cues[0]!.text).toBe('salary card: "Anthropic FDE, posted base: $280K–$320K."');
+  });
+
+  it("still treats escaped bracket notes as notes, not speech", () => {
+    expect(doc.cues[0]!.flags).toEqual(["VERIFY on record day"]);
+  });
+});
