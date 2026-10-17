@@ -1,5 +1,6 @@
 // Read a recording's stream facts (size, fps, VFR, HDR, audio) with ffprobe.
 import { basename } from "node:path";
+import { spawn } from "node:child_process";
 import { ffprobeJson, type RunOptions } from "../core/proc.ts";
 import type { Clip } from "../core/schema.ts";
 
@@ -77,5 +78,45 @@ export function clipFromProbe(json: ProbeJson, path: string, id: string): Clip {
 }
 
 export async function probeClip(path: string, id: string, opts: RunOptions = {}): Promise<Clip> {
-  return clipFromProbe((await ffprobeJson(path, opts)) as ProbeJson, path, id);
+  const clip = clipFromProbe((await ffprobeJson(path, opts)) as ProbeJson, path, id);
+  const crop = await detectLetterbox(path, clip);
+  return crop ? { ...clip, crop, width: crop.w, height: crop.h } : clip;
+}
+
+// ---------- letterbox detection ----------
+
+export type CropRect = { x: number; y: number; w: number; h: number };
+
+/** Pure: the crop ffmpeg's cropdetect settled on (its last report), or null. */
+export function parseCropdetect(stderr: string): CropRect | null {
+  const all = [...stderr.matchAll(/crop=(\d+):(\d+):(\d+):(\d+)/g)];
+  const m = all.at(-1);
+  return m ? { w: Number(m[1]), h: Number(m[2]), x: Number(m[3]), y: Number(m[4]) } : null;
+}
+
+/**
+ * Pure: is this a letterboxed recording worth cropping? Every sample must agree (within 4 px), the bars
+ * must take at least 8 % of the frame, and the picture inside must be 16:9 (within 2 %). Dark footage
+ * can fool cropdetect at one moment, but not into the same 16:9 box at three.
+ */
+export function letterboxFrom(samples: (CropRect | null)[], frame: { width: number; height: number }): CropRect | null {
+  const first = samples[0];
+  if (!first || samples.some((s) => !s || Math.abs(s.w - first.w) > 4 || Math.abs(s.h - first.h) > 4 || Math.abs(s.x - first.x) > 4 || Math.abs(s.y - first.y) > 4)) return null;
+  if (first.w * first.h > 0.92 * frame.width * frame.height) return null;
+  if (Math.abs(first.w / first.h / (16 / 9) - 1) > 0.02) return null;
+  const even = (n: number) => n - (n % 2);
+  return { x: even(first.x), y: even(first.y), w: even(first.w), h: even(first.h) };
+}
+
+/** Run cropdetect on three 3-second windows across the recording. */
+export async function detectLetterbox(path: string, clip: Pick<Clip, "duration" | "width" | "height">): Promise<CropRect | null> {
+  const at = [0.15, 0.5, 0.85].map((f) => Math.max(0, clip.duration * f - 1.5));
+  const samples = await Promise.all(at.map((t) => new Promise<CropRect | null>((done) => {
+    const p = spawn("ffmpeg", ["-hide_banner", "-ss", t.toFixed(2), "-t", "3", "-i", path, "-an", "-vf", "cropdetect=limit=24:round=2:reset=0", "-f", "null", "-"]);
+    let err = "";
+    p.stderr.on("data", (d: Buffer) => { err = (err + d.toString()).slice(-4000); });
+    p.on("close", () => done(parseCropdetect(err)));
+    p.on("error", () => done(null));
+  })));
+  return letterboxFrom(samples, clip);
 }

@@ -59,6 +59,9 @@ export function progressReader(totalSeconds: number, cb?: (fraction: number) => 
 export const hdrError = (clip: Pick<Clip, "name">) =>
   new Error(`${clip.name} is HDR (HLG/PQ). Record in SDR (turn HDR off in the camera or recorder settings) and import it again.`);
 
+/** `crop=…,` for a letterboxed clip (empty otherwise): goes first in every filter chain that reads its video. */
+export const cropFilter = (clip: Pick<Clip, "crop">) => (clip.crop ? `crop=${clip.crop.w}:${clip.crop.h}:${clip.crop.x}:${clip.crop.y},` : "");
+
 export type PrepareTarget = "proxy" | "wav" | "asrWav" | "asrMp3";
 export type PreparedClip = Record<PrepareTarget, string> & { made: PrepareTarget[] };
 
@@ -71,7 +74,7 @@ export function prepareOutputArgs(target: PrepareTarget, clip: Clip, fps: number
         "-map", "0:v:0",
         ...(clip.hasAudio ? ["-map", audioIn, "-af", resample(SAMPLE_RATE), "-ac", "2", "-c:a", "aac", "-b:a", "128k"] : ["-an"]),
         "-sn", "-dn",
-        "-vf", "scale=-2:'min(720,trunc(ih/2)*2)',setsar=1,format=yuv420p",
+        "-vf", `${cropFilter(clip)}scale=-2:'min(720,trunc(ih/2)*2)',setsar=1,format=yuv420p`,
         "-r", String(fps), "-fps_mode", "cfr",
         "-c:v", "h264_videotoolbox", "-q:v", "55", "-g", String(fps),
         "-movflags", "+faststart", "-f", "mp4", out,

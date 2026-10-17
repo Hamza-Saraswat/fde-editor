@@ -14,7 +14,7 @@ import { loadConfig, loadProject } from "../core/store.ts";
 import type { Clip, Project, Segment, Timeline } from "../core/schema.ts";
 
 type SpeakerSide = Project["speakerSide"];
-import { SAMPLE_RATE, atomicOutput, type MediaOptions } from "./prepare.ts";
+import { SAMPLE_RATE, atomicOutput, cropFilter, type MediaOptions } from "./prepare.ts";
 
 export type ProfileName = "preview" | "final";
 
@@ -68,11 +68,15 @@ export const zoomSignature = (seg: Pick<Segment, "zoom">, framing: SpeakerSide) 
   seg.zoom && seg.zoom > 1 ? `:zoom${seg.zoom}@${framing}` : "";
 
 /** Pure: ffmpeg args for one frame-exact, video-only segment (same recipe as the spike). */
-export function videoSegmentArgs(src: string, seg: Pick<Segment, "start" | "frames" | "zoom">, profile: EncodeProfile, out: string, framing: SpeakerSide = "center"): string[] {
+export function videoSegmentArgs(
+  src: string, seg: Pick<Segment, "start" | "frames" | "zoom">, profile: EncodeProfile, out: string,
+  o: { framing?: SpeakerSide; crop?: Clip["crop"] } = {},
+): string[] {
   const { width: W, height: H, fps } = profile;
   const zoomed = Boolean(seg.zoom && seg.zoom > 1);
   const vf = [
-    ...(zoomed ? [punchInCrop(seg.zoom!, framing)] : []),
+    ...(o.crop ? [cropFilter({ crop: o.crop }).slice(0, -1)] : []),
+    ...(zoomed ? [punchInCrop(seg.zoom!, o.framing ?? "center")] : []),
     `scale=${W}:${H}:force_original_aspect_ratio=decrease:force_divisible_by=2${zoomed ? ":flags=lanczos" : ""}`,
     `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`,
     "setsar=1",
@@ -199,7 +203,8 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
   const files: SegmentFiles[] = timeline.segments.map((seg) => {
     const clip = byId.get(seg.clipId)!;
     const stat = stats.get(clip.id)!;
-    const key = segmentKey(clip, seg, sig + zoomSignature(seg, framing), fps, stat);
+    const cropSig = clip.crop ? `:crop${clip.crop.w}x${clip.crop.h}+${clip.crop.x}+${clip.crop.y}` : "";
+    const key = segmentKey(clip, seg, sig + zoomSignature(seg, framing) + cropSig, fps, stat);
     return { key, video: join(dirs.video, `${key}.mp4`) };
   });
 
@@ -221,7 +226,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
 
   await pool(jobs, opts.concurrency ?? 2, async (job) => {
     const { seg, clip, f } = job;
-    await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part, framing), { signal: opts.signal, log }));
+    await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part, { framing, crop: clip.crop }), { signal: opts.signal, log }));
     done++;
     opts.onProgress?.(done / total, `Encoded ${done}/${total} ${label} segments`);
   }, opts.signal);

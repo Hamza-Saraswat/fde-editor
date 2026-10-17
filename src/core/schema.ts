@@ -54,6 +54,9 @@ export const ClipSchema = z.object({
   hasAudio: z.boolean(),
   vfr: z.boolean(),
   hdr: z.boolean(),
+  // The picture inside black bars, in source pixels: some recorders (CapCut's teleprompter) save a 16:9
+  // shot letterboxed inside a 9:16 canvas. Every encode crops to it; width/height above are its size.
+  crop: z.object({ x: z.number().int(), y: z.number().int(), w: z.number().int(), h: z.number().int() }).optional(),
 });
 export type Clip = z.infer<typeof ClipSchema>;
 

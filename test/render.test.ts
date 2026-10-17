@@ -85,7 +85,7 @@ describe("render arg builders", () => {
 
   it("a punch-in crops toward the speaker's face, and only zoomed segments change their cache key", () => {
     const profile = resolveProfile("final", { width: 2560, height: 1440 }, 30);
-    const vf = (zoom?: number) => { const a = videoSegmentArgs("/s.mp4", { start: 2, frames: 45, zoom }, profile, "/o.mp4", "left"); return a[a.indexOf("-vf") + 1]!; };
+    const vf = (zoom?: number) => { const a = videoSegmentArgs("/s.mp4", { start: 2, frames: 45, zoom }, profile, "/o.mp4", { framing: "left" }); return a[a.indexOf("-vf") + 1]!; };
     expect(vf()).not.toContain("crop=");
     expect(vf(1.1)).toMatch(/^crop=w=trunc\(iw\/1\.1\/2\)\*2:h=trunc\(ih\/1\.1\/2\)\*2:x=\(iw-ow\)\*0\.3:y=\(ih-oh\)\*0\.35,scale=2560:1440:.*flags=lanczos/);
     expect(punchInCrop(1.2, "right")).toContain("x=(iw-ow)*0.7");
