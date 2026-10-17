@@ -11,7 +11,9 @@ import { join } from "node:path";
 import { ffmpeg } from "../core/proc.ts";
 import { projectPaths } from "../core/paths.ts";
 import { loadConfig, loadProject } from "../core/store.ts";
-import type { Clip, Segment, Timeline } from "../core/schema.ts";
+import type { Clip, Project, Segment, Timeline } from "../core/schema.ts";
+
+type SpeakerSide = Project["speakerSide"];
 import { SAMPLE_RATE, atomicOutput, type MediaOptions } from "./prepare.ts";
 
 export type ProfileName = "preview" | "final";
@@ -49,11 +51,29 @@ export function segmentKey(clip: Pick<Clip, "path">, seg: Pick<Segment, "start" 
     .digest("hex");
 }
 
+/**
+ * Where a punch-in zooms toward: roughly the speaker's face for each framing. That point stays put on
+ * screen while everything grows around it, so the open side of the frame stays open for graphics.
+ */
+const PUNCH_ANCHOR: Record<SpeakerSide, [number, number]> = { left: [0.3, 0.35], center: [0.5, 0.35], right: [0.7, 0.35] };
+
+/** Pure: crop for a punch-in of `zoom` (> 1), keeping the anchor point fixed. */
+export function punchInCrop(zoom: number, framing: SpeakerSide): string {
+  const [ax, ay] = PUNCH_ANCHOR[framing];
+  return `crop=w=trunc(iw/${zoom}/2)*2:h=trunc(ih/${zoom}/2)*2:x=(iw-ow)*${ax}:y=(ih-oh)*${ay}`;
+}
+
+/** Cache-key suffix for a segment's punch-in (empty when it isn't zoomed, so unzoomed keys never change). */
+export const zoomSignature = (seg: Pick<Segment, "zoom">, framing: SpeakerSide) =>
+  seg.zoom && seg.zoom > 1 ? `:zoom${seg.zoom}@${framing}` : "";
+
 /** Pure: ffmpeg args for one frame-exact, video-only segment (same recipe as the spike). */
-export function videoSegmentArgs(src: string, seg: Pick<Segment, "start" | "frames">, profile: EncodeProfile, out: string): string[] {
+export function videoSegmentArgs(src: string, seg: Pick<Segment, "start" | "frames" | "zoom">, profile: EncodeProfile, out: string, framing: SpeakerSide = "center"): string[] {
   const { width: W, height: H, fps } = profile;
+  const zoomed = Boolean(seg.zoom && seg.zoom > 1);
   const vf = [
-    `scale=${W}:${H}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+    ...(zoomed ? [punchInCrop(seg.zoom!, framing)] : []),
+    `scale=${W}:${H}:force_original_aspect_ratio=decrease:force_divisible_by=2${zoomed ? ":flags=lanczos" : ""}`,
     `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`,
     "setsar=1",
     "format=yuv420p",
@@ -117,6 +137,7 @@ export type EnsureResult = {
 
 export type EnsureOptions = MediaOptions & {
   clips?: Clip[]; // defaults to project.json's clips
+  framing?: SpeakerSide; // where punch-ins zoom toward; defaults to project.json's speakerSide
   concurrency?: number; // default 2 (VideoToolbox sessions)
 };
 
@@ -152,7 +173,10 @@ export async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<vo
 
 export async function ensureSegments(slug: string, timeline: Timeline, profileName: ProfileName, opts: EnsureOptions = {}): Promise<EnsureResult> {
   const config = opts.config ?? (await loadConfig());
-  const clips = opts.clips ?? (await loadProject(slug)).clips;
+  const zoomed = timeline.segments.some((seg) => seg.zoom && seg.zoom > 1);
+  const project = !opts.clips || (zoomed && !opts.framing) ? await loadProject(slug) : null;
+  const clips = opts.clips ?? project!.clips;
+  const framing = opts.framing ?? project?.speakerSide ?? "center";
   const fps = timeline.fps;
   const profile = resolveProfile(profileName, config.output, fps);
   const sig = profileSignature(profile);
@@ -175,7 +199,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
   const files: SegmentFiles[] = timeline.segments.map((seg) => {
     const clip = byId.get(seg.clipId)!;
     const stat = stats.get(clip.id)!;
-    const key = segmentKey(clip, seg, sig, fps, stat);
+    const key = segmentKey(clip, seg, sig + zoomSignature(seg, framing), fps, stat);
     return { key, video: join(dirs.video, `${key}.mp4`) };
   });
 
@@ -197,7 +221,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
 
   await pool(jobs, opts.concurrency ?? 2, async (job) => {
     const { seg, clip, f } = job;
-    await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part), { signal: opts.signal, log }));
+    await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part, framing), { signal: opts.signal, log }));
     done++;
     opts.onProgress?.(done / total, `Encoded ${done}/${total} ${label} segments`);
   }, opts.signal);

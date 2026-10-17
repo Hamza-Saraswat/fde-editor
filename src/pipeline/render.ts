@@ -46,6 +46,7 @@ export const renderStage: StageFn = async (slug, ctx, deps) => {
     signal: ctx.signal,
     config,
     clips: project.clips,
+    framing: project.speakerSide,
     onProgress: (f, msg) => ctx.progress(f * 0.97, msg),
   });
 

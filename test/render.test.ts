@@ -6,7 +6,7 @@ import { ConfigSchema, type Clip, type Timeline } from "../src/core/schema.ts";
 import { probeClip } from "../src/media/probe.ts";
 import { loudnormFilter, parseLoudnormJson } from "../src/media/loudness.ts";
 import {
-  profileSignature, resolveProfile, sampleRange, segmentKey, videoSegmentArgs,
+  profileSignature, punchInCrop, resolveProfile, sampleRange, segmentKey, videoSegmentArgs, zoomSignature,
 } from "../src/media/segments.ts";
 import {
   concatList, finalBitrateMbps, overlayFiltergraph, sideAudioChain, sideVideoChain,
@@ -81,6 +81,16 @@ describe("render arg builders", () => {
     expect(vf).toContain("scale=2560:1440:force_original_aspect_ratio=decrease");
     expect(vf).toContain("pad=2560:1440:(ow-iw)/2:(oh-ih)/2");
     expect(vf).toContain("format=yuv420p");
+  });
+
+  it("a punch-in crops toward the speaker's face, and only zoomed segments change their cache key", () => {
+    const profile = resolveProfile("final", { width: 2560, height: 1440 }, 30);
+    const vf = (zoom?: number) => { const a = videoSegmentArgs("/s.mp4", { start: 2, frames: 45, zoom }, profile, "/o.mp4", "left"); return a[a.indexOf("-vf") + 1]!; };
+    expect(vf()).not.toContain("crop=");
+    expect(vf(1.1)).toMatch(/^crop=w=trunc\(iw\/1\.1\/2\)\*2:h=trunc\(ih\/1\.1\/2\)\*2:x=\(iw-ow\)\*0\.3:y=\(ih-oh\)\*0\.35,scale=2560:1440:.*flags=lanczos/);
+    expect(punchInCrop(1.2, "right")).toContain("x=(iw-ow)*0.7");
+    expect(zoomSignature({}, "left")).toBe("");
+    expect(zoomSignature({ zoom: 1.1 }, "left")).toBe(":zoom1.1@left");
   });
 
   it("segments map to sample-exact audio ranges", () => {

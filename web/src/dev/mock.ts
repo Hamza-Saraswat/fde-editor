@@ -17,7 +17,7 @@ const nowIso = () => new Date().toISOString();
 
 const CONFIG: Config = {
   output: { width: 2560, height: 1440, fps: 30 },
-  edit: { preMs: 80, postMs: 120, maxPauseMs: 400, fadeMs: 30, fillerGapMs: 250 },
+  edit: { preMs: 80, postMs: 120, maxPauseMs: 400, fadeMs: 30, fillerGapMs: 250, punchInZoom: 1.1 },
   transcription: { engine: "local", localEngine: "parakeet", localModel: "medium.en" },
   claude: { model: "opus", maxTurns: 40 },
   loudness: { I: -14, TP: -1.5, LRA: 11 },

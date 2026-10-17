@@ -214,6 +214,16 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
     }
   }
 
+  // Punch-ins: every other segment of a run from one clip is zoomed, so each jump cut changes the framing.
+  // A new clip (another take or angle) starts unzoomed.
+  if (edit.punchIn && config.edit.punchInZoom > 1) {
+    let zoomed = false;
+    segments.forEach((s, i) => {
+      zoomed = i > 0 && segments[i - 1]!.clipId === s.clipId ? !zoomed : false;
+      if (zoomed) s.zoom = config.edit.punchInZoom;
+    });
+  }
+
   const timeline: Timeline = { fps, segments, duration: outFrame / fps, overlays: [], chapters: [] };
 
   // ---------- anchors: overlays and chapters follow their words through the cut ----------

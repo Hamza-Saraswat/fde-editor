@@ -52,7 +52,7 @@ The first local transcription downloads the Parakeet model. HyperFrames handles 
 | **Import** | probe clips, make 720p proxies, extract 48 kHz and ASR audio, parse the script | ffmpeg |
 | **Transcribe** | word timestamps for every clip, silence detection, filler candidates (filler words plus voiced gaps), alignment to the script | Parakeet / Whisper / whisper-1 |
 | **Plan edit** | takes, cuts, ad-lib decisions, graphic anchors and briefs → `edit.json` | Claude Code (`claude -p`, read-only tools, JSON schema) |
-| **Preview** | frame-accurate keep segments, cached by content hash, joined with the concat demuxer | ffmpeg |
+| **Preview** | frame-accurate keep segments, cached by content hash, joined with the concat demuxer. The audio is crossfaded at every cut. A listen-back pass re-transcribes the preview and cuts any um still audible | ffmpeg + Parakeet |
 | **Graphics** | one HyperFrames composition per cue, linted, snapshotted, rendered to ProRes 4444 with alpha plus a VP9-alpha preview | Claude Code + HyperFrames |
 | **Render** | A-roll + overlays + intro + end card, two-pass loudnorm, H.264 BT.709, chapters, SRT | ffmpeg |
 | **X clips** | Claude picks 30–60 s moments; each gets burned-in brand captions | Claude Code + HyperFrames |
@@ -67,6 +67,9 @@ Set where you sit in frame per video: **left third**, **right third**, or **cent
 - **On a third:** graphics go on the open side.
 - **Centered:** each graphic goes left or right. Claude alternates sides, and you can flip any graphic.
   The `split` layout puts a comparison on both sides of you.
+- **Punch-ins** (off by default; the switch is in the review screen's Overview panel): every other
+  section of a continuous take zooms in about 10% toward you, so jump cuts read as camera changes.
+  Use them for camera footage. On a screen recording they crop the screen.
 
 ## Script format
 

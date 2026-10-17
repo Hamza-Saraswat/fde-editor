@@ -16,6 +16,7 @@ export const ConfigSchema = z.object({
     maxPauseMs: z.number().default(400), // longer natural pauses get tightened to this
     fadeMs: z.number().default(30), // length of the audio crossfade centred on every cut
     fillerGapMs: z.number().default(250), // a voiced gap between words longer than this is a filler candidate
+    punchInZoom: z.number().min(1).max(1.5).default(1.1), // how far a punch-in zooms (when the edit turns them on)
   }).prefault({}),
   transcription: z.object({
     engine: z.enum(["local", "openai"]).default("local"),
@@ -280,6 +281,8 @@ export const EditSchema = z.object({
   chapters: z.array(z.object({ title: z.string(), anchorWordId: z.string() })),
   intro: z.boolean().default(true),
   outro: z.boolean().default(true),
+  // Zoom in on every other section of a continuous take, so a jump cut reads as a camera change.
+  punchIn: z.boolean().optional(),
 });
 export type Edit = z.infer<typeof EditSchema>;
 
@@ -291,6 +294,7 @@ export type Segment = {
   end: number;
   frames: number;
   outStart: number; // where it lands in the output
+  zoom?: number; // punch-in scale (absent = 1, no zoom)
 };
 
 export type PlacedOverlay = { overlayId: string; cueId: string; start: number; end: number }; // output seconds

@@ -178,4 +178,4 @@ The same take was traced further with `spikes/why-heard.ts`, which shows each fi
 | Kept words clipped | 0 | 0 |
 | Word error rate vs. the kept words | 0.033 | 0.036 |
 
-Still open: visual jump cuts. Every cut in one continuous take moves the head slightly. Audio can't hide that. The usual fix is a punch-in, a small zoom on alternating segments.
+Visual jump cuts: every cut in one continuous take moves the head slightly. Audio can't hide that. **Punch-ins** are now an option, off by default ("Punch in on jump cuts" in the Overview panel, `edit.punchIn`). Every other segment of a run from one clip is zoomed by `edit.punchInZoom` (1.1) toward the speaker's face for the project's framing. The face point stays where it is on screen, so the open side stays open for graphics. Only zoomed segments get new cache keys. Turning it on for this take built 21 of 43 segments zoomed, and off again reused every cached segment. This take is a screen recording (slides with a camera bubble), so here a punch-in crops the slide. It is meant for camera footage.

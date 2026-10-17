@@ -232,6 +232,16 @@ function Overview() {
             })}
           </ul>
         </section>
+        <section aria-labelledby="ov-picture">
+          <h3 id="ov-picture" className="mb-2 text-[12px] font-semibold text-ink-2">
+            Picture
+          </h3>
+          <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-raised">
+            <span className="flex-1 text-[12.5px] text-ink">Punch in on jump cuts</span>
+            <Switch checked={Boolean(edit.punchIn)} label={edit.punchIn ? "Stop punching in on jump cuts" : "Punch in on jump cuts"} onChange={(v) => apply((e) => ({ ...e, punchIn: v }))} />
+          </div>
+          <p className="meta mt-1 px-2">Zooms in a little toward you on every other section, so each cut in one continuous take reads as a camera change. For camera footage: on a screen recording it crops the screen.</p>
+        </section>
         <section aria-labelledby="ov-gfx">
           <h3 id="ov-gfx" className="mb-2 text-[12px] font-semibold text-ink-2">
             Graphics

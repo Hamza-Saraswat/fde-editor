@@ -17,6 +17,7 @@ export const previewStage: StageFn<PreviewStageOptions> = async (slug, ctx, deps
       signal: ctx.signal,
       config,
       clips: project.clips,
+      framing: project.speakerSide,
       onProgress: (f, msg) => ctx.progress(f, `${label}${msg}`),
     });
     await writeFile(join(projectPaths(slug).outDir, "preview.json"), JSON.stringify({ editVersion: edit.version, duration: res.duration, builtAt: new Date().toISOString() }) + "\n");

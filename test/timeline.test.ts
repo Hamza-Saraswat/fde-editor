@@ -279,3 +279,20 @@ describe("cuts win over sloppy word stamps", () => {
     expect(at.end - at.start).toBeGreaterThan(0.3);
   });
 });
+
+describe("punch-ins", () => {
+  const ws = words("c1", [["a", 1.0, 1.4], ["b", 2.0, 2.4], ["c", 3.0, 3.4], ["d", 4.0, 4.4]]);
+  const cuts = [cut("c1", 1.5, 1.9), cut("c1", 2.5, 2.9), cut("c1", 3.5, 3.9)];
+
+  it("are off unless the edit turns them on", () => {
+    const tl = buildTimeline(editOf({ cuts }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it("zoom every other segment of one take, and restart unzoomed on a new clip", () => {
+    const w2 = words("c2", [["e", 0.5, 0.9], ["f", 1.5, 1.9]]);
+    const edit = editOf({ cuts: [...cuts, cut("c2", 1.0, 1.4)], clipOrder: ["c1", "c2"], punchIn: true });
+    const tl = buildTimeline(edit, transcriptOf([...ws, ...w2]), [clip("c1", 10), clip("c2", 10)], config(30));
+    expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, undefined, 1.1, undefined, 1.1]);
+  });
+});
