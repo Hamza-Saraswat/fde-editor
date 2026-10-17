@@ -59,7 +59,10 @@ export async function renderComposition(
 ): Promise<string> {
   await mkdir(dirname(out), { recursive: true });
   const part = out.replace(/(\.[a-z0-9]+)$/i, ".part$1");
-  const args = ["render", dir, "--format", o.format ?? "mov", "--fps", String(o.fps ?? 30), "--quality", "high", "-o", part];
+  // One worker: HyperFrames then streams frames straight into the encoder. With several workers on macOS
+  // it stores every frame as a PNG first (~12 GB for a 48 s 1440p alpha caption layer), which fails on a
+  // Mac with little free disk.
+  const args = ["render", dir, "--format", o.format ?? "mov", "--fps", String(o.fps ?? 30), "--quality", "high", "--workers", "1", "-o", part];
   if (o.variables) args.push("--variables", JSON.stringify(o.variables));
   await run(HYPERFRAMES_BIN, args, {
     ...o,
