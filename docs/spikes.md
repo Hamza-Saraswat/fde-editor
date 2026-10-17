@@ -132,3 +132,26 @@ The word-error figures are Parakeet's own variation ("eval"/"evals", "Claude"/"c
 that word, which the sweep correctly refuses. The fourth falls where a cut join makes its position ambiguous.
 These are short fragments, not whole ums. Removing them would need a crossfade or a pickup line, not a
 harder cut. **A listening check by Hamza on his own material is still the real judge.**
+
+### (h, round 2) After Hamza listened (2026-10-17)
+
+He reported that some cuts were very noticeable and asked why a huge pause was kept. `spikes/diagnose-cut.ts`
+(long silences in the edited audio, mapped back to the source, plus a profile of every join) found two causes:
+
+1. **The huge pause.** Parakeet stamped the word "team." as lasting **17.6 s**, because it attached a silence
+   (him going quiet during the demo) to the last word. The editor treats a word's span as speech, so all 17 s
+   were kept. Smaller cases: "pages," (1.2 s) and "happen." (1.28 s). Fix: word stamps are trimmed so they never
+   cover a detected silence of 0.25 s or more (`src/transcribe/speech.ts`). The pause cap then shortens the real
+   gap.
+2. **Words butting together.** 22 of 36 joins had under 120 ms between the words on either side. The earlier
+   filler fix snapped cut edges out to the quietest point up to 160 ms away, which also removed the natural
+   pauses around each "uh". Fix: cut only the *voiced* part of the filler, plus 30 ms either side
+   (`voicedCore` in `src/media/energy.ts`), so the surrounding pauses stay.
+
+| | Round 1 | Round 2 |
+|---|---|---|
+| Edited length (from 3:00) | 2:23 | 2:00 |
+| Silences ≥ 0.55 s in the edit | 14 (one 17 s) | 1 (0.73 s, a paragraph change) |
+| Joins under 120 ms between words | 22 of 36 | 13 of 43 (median 0.15 s) |
+| um/uh still audible | 4 | 3 |
+| Kept words clipped | 0 | 0 |

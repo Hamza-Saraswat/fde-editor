@@ -12,7 +12,7 @@ import { EditSchema, TranscriptSchema, type Cut, type Edit, type Timeline, type 
 import { loadConfig, loadProject, readJson, writeJson } from "../core/store.ts";
 import { buildTimeline, keptWordIds, outputToSource } from "../core/timeline.ts";
 import { ffmpeg } from "../core/proc.ts";
-import { loadEnvelope, refineSpan, type Envelope } from "../media/energy.ts";
+import { loadEnvelope, voicedCore, type Envelope } from "../media/energy.ts";
 import { transcribeLocalFile } from "./local.ts";
 
 export type SweepResult = { heardFillers: number; added: number; skipped: number };
@@ -39,7 +39,7 @@ export function planSweepCuts(
     const before = clipWords.filter((w) => mid(w) <= start).at(-1);
     const after = clipWords.find((w) => mid(w) >= end);
     const env = envelopes.get(a.clipId);
-    if (env) ({ start, end } = refineSpan(env, start, end, before ? mid(before) : 0, after ? mid(after) : end + 0.3));
+    if (env) ({ start, end } = voicedCore(env, start, end, before ? mid(before) : 0, after ? mid(after) : end + 0.3));
     // Never take a kept word; never overrule a filler someone chose to keep, or a cut the user made.
     // (A kept ad-lib is a disabled "adlib" cut: it means "keep these words", not "keep its ums".)
     const touchesKept = clipWords.some((w) => mid(w) > start && mid(w) < end);

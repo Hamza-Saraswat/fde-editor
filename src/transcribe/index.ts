@@ -3,6 +3,7 @@
 // attach detected silences and filler candidates.
 import { loadEnvelope, type Envelope } from "../media/energy.ts";
 import { refineFillerTokens } from "./refine.ts";
+import { trimWordsToSpeech } from "./speech.ts";
 import { existsSync } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -210,7 +211,8 @@ export async function transcribeProject(slug: string, opts: TranscribeOptions = 
     doneWeight += weight;
   }
 
-  const merged = mergeClipWords(perClip);
+  // Word stamps never cover a detected silence (see speech.ts), so long pauses are real gaps.
+  const merged = trimWordsToSpeech(mergeClipWords(perClip), silences);
   // Filler stamps from ASR are coarse; snap each filler word (and its neighbours) to the quiet valleys
   // in the audio so cutting it takes the whole "uh" and nothing else.
   const envelopes = new Map<string, Envelope>();

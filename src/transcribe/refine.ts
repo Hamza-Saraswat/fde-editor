@@ -1,7 +1,8 @@
-// Move filler-word boundaries (and their neighbours') to the quiet valleys in the audio, so cutting
-// an "uh" takes all of it and none of the words around it. Pure given the envelopes.
+// Fit filler-word boundaries to the voiced part of the "uh" in the audio (and keep neighbours from
+// overlapping it), so cutting it takes the whole sound but leaves the natural pauses around it.
+// Pure given the envelopes.
 import type { FillerCandidate, Word } from "../core/schema.ts";
-import { refineSpan, type Envelope } from "../media/energy.ts";
+import { voicedCore, type Envelope } from "../media/energy.ts";
 
 const ms = (t: number) => Math.round(t * 1000) / 1000;
 
@@ -19,7 +20,7 @@ export function refineFillerTokens(words: Word[], fillers: FillerCandidate[], en
     // never eat into the first/last 60 % of a neighbouring word
     const minStart = prev ? prev.start + 0.4 * (prev.end - prev.start) : 0;
     const maxEnd = next ? next.end - 0.6 * (next.end - next.start) : w.end + 0.3;
-    const r = refineSpan(env, w.start, w.end, minStart, maxEnd);
+    const r = voicedCore(env, w.start, w.end, minStart, maxEnd);
     w.start = ms(r.start);
     w.end = ms(r.end);
     if (prev && prev.end > w.start) prev.end = w.start;

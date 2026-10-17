@@ -3,7 +3,11 @@
 // Parakeet are quantized to ~80 ms and often leave the edge of an "uh" behind.
 import { open } from "node:fs/promises";
 
-export type Envelope = { hop: number; rms: Float32Array };
+export type Envelope = {
+  hop: number;
+  rms: Float32Array;
+  speech: number; // typical loudness of speech in this clip (90th percentile of the envelope)
+};
 
 const HOP = 0.01;
 
@@ -46,10 +50,44 @@ export async function loadEnvelope(wavPath: string): Promise<Envelope> {
       }
       rms[h] = Math.sqrt(sum / Math.max(1, to - from));
     }
-    return { hop: HOP, rms };
+    return { hop: HOP, rms, speech: speechLevel(rms) };
   } finally {
     await fh.close();
   }
+}
+
+export function speechLevel(rms: Float32Array): number {
+  if (!rms.length) return 0;
+  const sorted = Float32Array.from(rms).sort();
+  return sorted[Math.floor(sorted.length * 0.9)] ?? 0;
+}
+
+/**
+ * The voiced part of a filler: the loud run (> 20 % of speech level) around the stamped span, padded by
+ * 30 ms, kept inside [minStart, maxEnd]. Cutting just this keeps the speaker's natural pauses on both
+ * sides of the "uh", so the words around it don't butt together. Falls back to the stamp when the
+ * stamp holds no voiced audio.
+ */
+export function voicedCore(env: Envelope, start: number, end: number, minStart: number, maxEnd: number, reach = 0.16): { start: number; end: number } {
+  const thr = Math.max(0.004, env.speech * 0.2);
+  const at = (t: number) => env.rms[Math.min(env.rms.length - 1, Math.max(0, Math.floor(t / env.hop)))] ?? 0;
+  const lo = Math.max(minStart, start - reach), hi = Math.min(maxEnd, end + reach);
+  // the loudest point inside the stamp anchors the filler's voiced run
+  let peak = -1, peakV = -1;
+  for (let t = Math.max(lo, start); t <= Math.min(hi, end); t += env.hop) if (at(t) > peakV) { peakV = at(t); peak = t; }
+  if (peak < 0 || peakV < thr) return { start, end };
+  // grow outwards while voiced, tolerating dips shorter than 30 ms
+  const grow = (dir: 1 | -1, limit: number) => {
+    let t = peak, quiet = 0, last = peak;
+    while ((dir > 0 ? t + env.hop <= limit : t - env.hop >= limit)) {
+      t += dir * env.hop;
+      if (at(t) >= thr) { quiet = 0; last = t; } else if ((quiet += env.hop) > 0.03) break;
+    }
+    return last;
+  };
+  const s = Math.max(lo, grow(-1, lo) - 0.03);
+  const e = Math.min(hi, grow(1, hi) + env.hop + 0.03);
+  return e - s >= 0.05 ? { start: s, end: e } : { start, end };
 }
 
 /** Time of the quietest 10 ms in [from, to] (ties → closest to `prefer`). */
