@@ -74,6 +74,9 @@ Lower-thirds use `lower-third-left` / `lower-third-right`, under the speaker. Fo
   script or the transcript. Keep numbers, names and prices exactly as the cue gives them, and never
   invent a fact, number, logo or quote.
 - No emoji. Sentence case for titles; mono labels are uppercase (the class does it).
+- Every piece of text sits on a card, a chip or the cutaway backdrop, including section labels like
+  "Three places to start". Never put text straight onto the footage: the room behind Hamza (a bright
+  window, blinds) makes it unreadable.
 
 ## Motion
 

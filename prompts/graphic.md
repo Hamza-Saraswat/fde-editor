@@ -51,6 +51,7 @@ structure are acceptable; errors are not.
       is a cutaway: `.fn-backdrop` covers the frame and the content fills the zone (BRAND.md, Zones).
 - [ ] Each entrance lands about 0.1 s before its word in `words[]`. The exit ends exactly at `durationSec`.
 - [ ] One orange emphasis at most. Readable text is 34 px or larger. No invented facts.
+- [ ] No text straight on the footage: every label sits on a card, chip or backdrop (BRAND.md, Type rules).
 - [ ] Screenshots: crop, blur and highlight applied exactly as given. Nothing identifying is visible.
       Excerpt cards (no screenshot): only quoted lines, nothing identifying.
 - [ ] It follows the HyperFrames contract in BRAND.md, so lint and check will pass.
