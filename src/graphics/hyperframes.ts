@@ -4,7 +4,7 @@ import { existsSync, statSync } from "node:fs";
 import { cp, mkdir, readdir, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { BRAND_DIR, HYPERFRAMES_BIN, brandPaths } from "../core/paths.ts";
-import { run, ffmpeg, ffprobeJson, type RunOptions } from "../core/proc.ts";
+import { ProcError, run, ffmpeg, ffprobeJson, type RunOptions } from "../core/proc.ts";
 
 const HF_ENV = { HYPERFRAMES_NO_TELEMETRY: "1", PRODUCER_BROWSER_GPU_MODE: "hardware" };
 type Opts = Pick<RunOptions, "signal" | "log" | "onStderrLine" | "onStdoutLine">;
@@ -28,7 +28,9 @@ export async function checkComposition(dir: string, opts: Opts = {}): Promise<Ch
       output += `$ hyperframes ${cmd}\n${r.stdout}\n${r.stderr}\n`;
     } catch (e) {
       ok = false;
-      output += `$ hyperframes ${cmd}\n${(e as Error).message}\n`;
+      // `check` prints its report on stdout and exits 1: that report is what a fix-up round needs
+      const pe = e instanceof ProcError ? e : null;
+      output += `$ hyperframes ${cmd}\n${pe ? `${pe.stdout}\n${pe.stderr}` : (e as Error).message}\n`;
     }
   }
   const errors = Number(/(\d+)\s+error\(s\)/.exec(output)?.[1] ?? (ok ? 0 : 1));

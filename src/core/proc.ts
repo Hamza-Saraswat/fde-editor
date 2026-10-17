@@ -15,7 +15,7 @@ export type RunOptions = {
 };
 
 export class ProcError extends Error {
-  constructor(public cmd: string, public exitCode: number | undefined, public stderr: string) {
+  constructor(public cmd: string, public exitCode: number | undefined, public stderr: string, public stdout = "") {
     super(`${cmd} failed (exit ${exitCode ?? "?"}): ${stderr.split("\n").filter(Boolean).slice(-6).join("\n")}`);
   }
 }
@@ -53,7 +53,7 @@ export async function run(bin: string, args: string[], opts: RunOptions = {}): P
   const stderr = String(res.stderr ?? "");
   if (opts.log) await appendFile(opts.log, stderr.slice(-20000) + `\n[exit ${res.exitCode}]\n`);
   if (res.isCanceled) throw new ProcError(cmd, res.exitCode, "cancelled");
-  if (res.failed) throw new ProcError(cmd, res.exitCode, stderr || String(res.message ?? ""));
+  if (res.failed) throw new ProcError(cmd, res.exitCode, stderr || String(res.message ?? ""), stdout);
   return { stdout, stderr };
 }
 

@@ -27,8 +27,8 @@ name any other font. No external URLs of any kind: no CDNs, no Google Fonts, no 
 | `--fn-signal-soft` | marker highlight behind words (`.fn-mark`) |
 | `--fn-pine` `#2f5d50` | secondary accent: "Definition" labels, a "good" state |
 
-The canvas background stays transparent (`html, body` are transparent in `components.css`). The only
-exceptions are the intro and end card templates, which are full-frame.
+The canvas background stays transparent (`html, body` are transparent in `components.css`). The
+exceptions are the intro and end card templates, and layout `full`, which is a cutaway (below).
 
 ## Zones: where a graphic may sit
 
@@ -41,6 +41,12 @@ of the frame.
 | `left` third | `right-wide` (x 1180–2440) | n/a: use `right-wide` | `full` |
 | `right` third | `left-wide` (x 120–1380) | n/a: use `left-wide` | `full` |
 | `center` | `left-narrow` (x 100–860) **or** `right-narrow` (x 1700–2460), per `side` | **both** narrow zones, one card each | `full` |
+
+Layout `full` is a **cutaway**: the viewer leaves Hamza for the content, so nothing of him may peek
+around it. Put a `.fn-backdrop` div as the first child of the root (outside the zone, same
+`data-start`/`data-duration`), fade it in over 0.25 s at the start and out over the last 0.3 s, and size
+the content to fill the `full` zone (a posting card uses most of its 2240 × 1240), not a strip across the
+middle of the frame.
 
 Lower-thirds use `lower-third-left` / `lower-third-right`, under the speaker. For a centred speaker, use
 `lower-third-left`. Zones are 1200 px tall and centre their content vertically. Add class `top` or
@@ -59,6 +65,7 @@ Lower-thirds use `lower-third-left` / `lower-third-right`, under the speaker. Fo
 - `.fn-row`: side-by-side children of equal width
 - `.fn-lower-third` with `.name` and `.role`
 - `.fn-shot` screenshot frame: `.viewport` plus the layout script from `templates/screenshot`; `.blur`, `.hl` boxes
+- `.fn-backdrop`: the full-frame paper behind a layout `full` cutaway
 
 ## Type rules
 

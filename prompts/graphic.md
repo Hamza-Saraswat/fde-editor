@@ -38,14 +38,17 @@ reference them with relative paths. Do not create or edit any other file.
 ## Validation
 
 You can't run commands. When you finish, the server runs `hyperframes lint` and `hyperframes check` on
-your file. If they report errors, you get them back for one fix-up round, so get the contract right the
+your file. `check` fails a graphic of 3 s or more that looks frozen across its sample times
+(`sweep_static`; opacity counts, elements marked `data-layout-ignore` don't). So build content as he says
+it, one line or item per beat, rather than putting everything up in the first second and holding it. If they report errors, you get them back for one fix-up round, so get the contract right the
 first time: read `hyperframes-core` (via the Skill tool) if unsure. Warnings about missing ids or nested
 structure are acceptable; errors are not.
 
 ## Checklist
 
 - [ ] `data-duration` on the root and on every full-length clip equals `durationSec`.
-- [ ] Content sits only inside the right zone(s), and Hamza's part of the frame stays empty.
+- [ ] Content sits only inside the right zone(s), and Hamza's part of the frame stays empty. Layout `full`
+      is a cutaway: `.fn-backdrop` covers the frame and the content fills the zone (BRAND.md, Zones).
 - [ ] Each entrance lands about 0.1 s before its word in `words[]`. The exit ends exactly at `durationSec`.
 - [ ] One orange emphasis at most. Readable text is 34 px or larger. No invented facts.
 - [ ] Screenshots: crop, blur and highlight applied exactly as given. Nothing identifying is visible.

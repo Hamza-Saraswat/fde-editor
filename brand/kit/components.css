@@ -78,3 +78,5 @@ html, body { margin: 0; background: transparent; }
 
 /* ---------- full-frame card (layout "full") ---------- */
 .fn-full { position: absolute; inset: 100px 160px; }
+/* layout "full" is a cutaway: the backdrop covers the whole frame (Hamza included) behind the content */
+.fn-backdrop { position: absolute; inset: 0; background: var(--fn-paper-2); }
