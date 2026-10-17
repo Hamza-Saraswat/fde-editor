@@ -65,17 +65,23 @@ export function speechLevel(rms: Float32Array): number {
 /**
  * The voiced part of a filler: the loud run (> 20 % of speech level) around the stamped span, padded by
  * 30 ms, kept inside [minStart, maxEnd]. Cutting just this keeps the speaker's natural pauses on both
- * sides of the "uh", so the words around it don't butt together. Falls back to the stamp when the
- * stamp holds no voiced audio.
+ * sides of the "uh", so the words around it don't butt together. Falls back to the stamp (with
+ * `voiced: false`) when the stamp holds no voiced audio.
  */
-export function voicedCore(env: Envelope, start: number, end: number, minStart: number, maxEnd: number, reach = 0.16): { start: number; end: number } {
+export function voicedCore(env: Envelope, start: number, end: number, minStart: number, maxEnd: number, reach = 0.16): { start: number; end: number; voiced: boolean } {
   const thr = Math.max(0.004, env.speech * 0.2);
-  const at = (t: number) => env.rms[Math.min(env.rms.length - 1, Math.max(0, Math.floor(t / env.hop)))] ?? 0;
+  const raw = (i: number) => env.rms[Math.min(env.rms.length - 1, Math.max(0, i))] ?? 0;
+  // median of three hops: a 10 ms click inside a gap must not read as voice and bridge the gap
+  const at = (t: number) => {
+    const i = Math.floor(t / env.hop + 1e-9);
+    const [a, b, c] = [raw(i - 1), raw(i), raw(i + 1)];
+    return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
+  };
   const lo = Math.max(minStart, start - reach), hi = Math.min(maxEnd, end + reach);
   // the loudest point inside the stamp anchors the filler's voiced run
   let peak = -1, peakV = -1;
   for (let t = Math.max(lo, start); t <= Math.min(hi, end); t += env.hop) if (at(t) > peakV) { peakV = at(t); peak = t; }
-  if (peak < 0 || peakV < thr) return { start, end };
+  if (peak < 0 || peakV < thr) return { start, end, voiced: false };
   // grow outwards while voiced, tolerating dips shorter than 30 ms
   const grow = (dir: 1 | -1, limit: number) => {
     let t = peak, quiet = 0, last = peak;
@@ -87,7 +93,8 @@ export function voicedCore(env: Envelope, start: number, end: number, minStart: 
   };
   const s = Math.max(lo, grow(-1, lo) - 0.03);
   const e = Math.min(hi, grow(1, hi) + env.hop + 0.03);
-  return e - s >= 0.05 ? { start: s, end: e } : { start, end };
+  // under ~40 ms of voice (a lip click, a breath) is not a filler
+  return e - s >= 0.11 ? { start: s, end: e, voiced: true } : { start, end, voiced: false };
 }
 
 /** Time of the quietest 10 ms in [from, to] (ties → closest to `prefer`). */

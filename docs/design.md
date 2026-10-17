@@ -159,8 +159,8 @@ out/                 final.mp4, chapters.txt, captions.srt, x-clips/*.mp4
    - **B-roll:** he attaches a screenshot to a cue in the UI and draws crop, blur and highlight boxes. These are required for job posts (identifying lines are cropped). Claude builds the card from the image and the boxes.
 6. **Preview (fast, incremental)**
    - Each keep segment is encoded once at 720p (video only, frame-accurate `-ss`/`-t`, h264_videotoolbox, cached by content hash).
-   - The audio is a PCM WAV piece with 30 ms `afade` in and out at each end.
-   - Concat both with the concat demuxer and mux them into `preview.mp4`. Toggling a cut only re-encodes the segments that changed.
+   - The audio is mixed sample by sample from the clip WAVs (`src/media/mixdown.ts`), with a 30 ms equal-power crossfade centred on every cut. Each piece carries a 15 ms handle past both ends, so the length stays exact and the level doesn't dip at a cut. (The first build used a 30 ms fade out and in on each piece instead. Listening to a real take showed that this left a hole at every join in continuous speech.)
+   - Concat the video segments with the concat demuxer and mux them with the mix into `preview.mp4`. Toggling a cut only re-encodes the segments that changed.
    - Graphics play as `<video>` (webm with alpha) laid over the player in the page, timed from the timeline map.
 7. **Final render**
    - Build the same segment cache at full resolution (hevc_videotoolbox at high quality), then concat to make the A-roll.

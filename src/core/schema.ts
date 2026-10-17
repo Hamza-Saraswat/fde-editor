@@ -14,7 +14,7 @@ export const ConfigSchema = z.object({
     preMs: z.number().default(80), // padding kept before a kept word
     postMs: z.number().default(120), // padding kept after a kept word
     maxPauseMs: z.number().default(400), // longer natural pauses get tightened to this
-    fadeMs: z.number().default(30), // audio fade at every cut
+    fadeMs: z.number().default(30), // length of the audio crossfade centred on every cut
     fillerGapMs: z.number().default(250), // a voiced gap between words longer than this is a filler candidate
   }).prefault({}),
   transcription: z.object({

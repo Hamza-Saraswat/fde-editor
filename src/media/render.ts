@@ -13,6 +13,7 @@ import { loadConfig } from "../core/store.ts";
 import type { Timeline } from "../core/schema.ts";
 import { SAMPLE_RATE, atomicOutput, progressReader, type MediaOptions, type Progress } from "./prepare.ts";
 import { ensureSegments, type EnsureOptions } from "./segments.ts";
+import { mixdown } from "./mixdown.ts";
 import { loudnormFilter, measureLoudness, type LoudnessMeasurement } from "./loudness.ts";
 import { parseRate, type ProbeJson } from "./probe.ts";
 
@@ -151,13 +152,14 @@ export async function buildPreview(slug: string, timeline: Timeline, opts: Ensur
   const segs = await ensureSegments(slug, timeline, "preview", { ...opts, log, onProgress: sub(opts.onProgress, 0, 0.9) });
   await mkdir(p.cacheDir, { recursive: true });
   const vList = join(p.cacheDir, "preview.video.txt");
-  const aList = join(p.cacheDir, "preview.audio.txt");
+  const wav = join(p.cacheDir, "preview.wav");
   await writeFile(vList, concatList(segs.files.map((f) => f.video)));
-  await writeFile(aList, concatList(segs.files.map((f) => f.audio)));
-  opts.onProgress?.(0.9, "Joining preview");
+  opts.onProgress?.(0.9, "Mixing preview audio");
+  await mixdown(slug, timeline, wav, { config: opts.config, clips: opts.clips, signal: opts.signal, log });
+  opts.onProgress?.(0.93, "Joining preview");
   await atomicOutput(p.preview, (part) => ffmpeg([
     "-f", "concat", "-safe", "0", "-i", vList,
-    "-f", "concat", "-safe", "0", "-i", aList,
+    "-i", wav,
     "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
     "-c:a", "aac", "-b:a", "160k", "-ar", String(SAMPLE_RATE),
     "-movflags", "+faststart", "-f", "mp4", part,
@@ -203,7 +205,7 @@ export async function renderFinal(slug: string, timeline: Timeline, opts: FinalO
   const arollWav = join(p.cacheDir, "aroll.wav");
   opts.onProgress?.(0.55, "Joining A-roll");
   await concatCopy(join(p.cacheDir, "final.video.txt"), segs.files.map((f) => f.video), arollMp4, run);
-  await concatCopy(join(p.cacheDir, "final.audio.txt"), segs.files.map((f) => f.audio), arollWav, run);
+  await mixdown(slug, timeline, arollWav, { config, clips: opts.clips, signal: opts.signal, log });
   const arollFrames = segs.frames;
   const arollSamples = Math.round((arollFrames * SAMPLE_RATE) / fps);
 

@@ -8,7 +8,7 @@ import { PROMPTS_DIR, REPO_ROOT, projectPaths } from "../core/paths.ts";
 import { EditSchema, TranscriptSchema, XClipPlanSchema, type XClipPlan } from "../core/schema.ts";
 import { isFillerWord } from "../core/normalize.ts";
 import { loadConfig, loadProject, readJsonIfExists } from "../core/store.ts";
-import { buildTimeline, keptWordIds, sourceToOutput } from "../core/timeline.ts";
+import { buildTimeline, keptWordIds, wordToOutput } from "../core/timeline.ts";
 import { runClaude, type ClaudeEvent } from "./runner.ts";
 
 export type FinalLine = { start: number; end: number; text: string };
@@ -30,10 +30,9 @@ export async function finalTranscriptLines(slug: string): Promise<{ lines: Final
   let cur: { start: number; end: number; words: string[] } | null = null;
   for (const w of transcript.words) {
     if (!kept.has(w.id) || isFillerWord(w.text)) continue;
-    const t = sourceToOutput(timeline, w.clipId, w.start);
-    if (t === null) continue;
-    const te = (sourceToOutput(timeline, w.clipId, w.end) ?? t + (w.end - w.start)) + intro;
-    const ts = t + intro;
+    const at = wordToOutput(timeline, w);
+    if (!at) continue;
+    const ts = at.start + intro, te = at.end + intro;
     if (cur && (ts - cur.end > 0.7 || cur.words.length >= 28)) {
       lines.push({ start: cur.start, end: cur.end, text: cur.words.join(" ") });
       cur = null;

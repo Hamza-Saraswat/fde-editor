@@ -9,7 +9,8 @@ import { HYPERFRAMES_BIN, projectPaths } from "../src/core/paths.ts";
 import { EditSchema, TranscriptSchema } from "../src/core/schema.ts";
 import { FILLER_WORDS, normalizeWords } from "../src/core/normalize.ts";
 import { loadConfig, loadProject, readJson } from "../src/core/store.ts";
-import { buildTimeline, keptWordIds, sourceToOutput } from "../src/core/timeline.ts";
+import { buildTimeline, keptWordIds, sourceToOutput, trimToRemoval } from "../src/core/timeline.ts";
+import { loadEnvelope, voicedCore } from "../src/media/energy.ts";
 
 const slug = process.argv[2]!;
 const p = projectPaths(slug);
@@ -41,12 +42,21 @@ for (let i = n, j = m; i > 0 || j > 0;) {
 ops.reverse();
 
 // Word-onset safety: every kept word must start inside a segment (the bug the snapping fix addressed).
-const clippedOnsets = expected.filter((w) => sourceToOutput(tl, w.clipId, w.start) === null).map((w) => w.text);
+// (Onsets a cut trimmed count from the trimmed start: the cut, placed from the audio, wins over the stamp.)
+const onCuts = edit.cuts.filter((c) => c.enabled);
+const clippedOnsets = expected.map((w) => trimToRemoval(w, onCuts.filter((c) => c.clipId === w.clipId)))
+  .filter((w) => sourceToOutput(tl, w.clipId, w.start) === null).map((w) => w.text);
+
+// A filler the re-listen "hears" where the edited audio has no voice (a pause, a lip click) is the
+// recogniser guessing from context, not something you can hear.
+const editedEnv = await loadEnvelope(join(work, "edited.wav"));
+const voiced = (w: { start: number; end: number }) => voicedCore(editedEnv, w.start, w.end, w.start - 0.08, w.end + 0.08, 0.08).voiced;
 
 console.log(JSON.stringify({
   segments: tl.segments.length, editedSeconds: +tl.duration.toFixed(1),
   expectedWords: n, heardWords: m, wordErrorRate: +(d[n]![m]! / Math.max(1, n)).toFixed(3),
-  fillersStillAudible: fillersLeft.map((w) => `${w.text}@${w.start.toFixed(1)}s`),
+  fillersStillAudible: fillersLeft.filter(voiced).map((w) => `${w.text}@${w.start.toFixed(1)}s`),
+  fillersHeardInSilence: fillersLeft.filter((w) => !voiced(w)).map((w) => `${w.text}@${w.start.toFixed(1)}s`),
   keptWordsWithClippedOnset: clippedOnsets,
   differences: ops,
 }, null, 2));

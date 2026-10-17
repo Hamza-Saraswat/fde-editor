@@ -45,6 +45,17 @@ describe("energy valleys", () => {
     expect(r.end).toBeLessThanOrEqual(0.85); // and leaves most of the 0.80–0.95 pause
   });
 
+  it("a 10 ms click inside the gap doesn't bridge it", () => {
+    // real take: "[uh] One," — the gap before "One" (0.51–0.57) has one 10 ms blip above threshold
+    const rms = new Float32Array(100).fill(0.002);
+    for (let i = 27; i < 51; i++) rms[i] = 0.3;
+    rms[54] = 0.08;
+    for (let i = 57; i < 90; i++) rms[i] = 0.3;
+    const r = voicedCore({ hop: 0.01, rms, speech: 0.3 }, 0.3, 0.38, 0.0, 0.7, 0.3);
+    expect(r.end).toBeLessThanOrEqual(0.56); // stops in the gap, before "One" at 0.57
+    expect(r.end).toBeGreaterThanOrEqual(0.51);
+  });
+
   it("refines filler words to their voiced core and keeps neighbours from overlapping them", () => {
     const words = [
       { id: "w0", clipId: "c1", text: "two", start: 0.1, end: 0.5 },

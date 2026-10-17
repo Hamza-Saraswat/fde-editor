@@ -1,7 +1,7 @@
 // Content-addressed segment cache: the core of preview and final render.
-// Every kept Segment becomes one video-only file (frame-exact, -frames:v N) and one PCM piece
-// (sample-exact, N * 48000 / fps samples). Concatenating them with the concat demuxer and
-// `-c copy` gives 0 ms A/V drift (spikes/segment-sync.mjs: 200 segments, 0 ms).
+// Every kept Segment becomes one video-only file (frame-exact, -frames:v N). Concatenating them with
+// the concat demuxer and `-c copy` gives 0 ms A/V drift against audio cut at N * 48000 / fps samples
+// per segment (spikes/segment-sync.mjs: 200 segments, 0 ms); the audio is mixed in mixdown.ts.
 // Keys hash the source identity + the frame range + the encode profile, so toggling a cut only
 // encodes the segments that changed.
 import { createHash } from "node:crypto";
@@ -12,7 +12,7 @@ import { ffmpeg } from "../core/proc.ts";
 import { projectPaths } from "../core/paths.ts";
 import { loadConfig, loadProject } from "../core/store.ts";
 import type { Clip, Segment, Timeline } from "../core/schema.ts";
-import { SAMPLE_RATE, atomicOutput, prepareClip, type MediaOptions } from "./prepare.ts";
+import { SAMPLE_RATE, atomicOutput, type MediaOptions } from "./prepare.ts";
 
 export type ProfileName = "preview" | "final";
 
@@ -106,39 +106,7 @@ export function sampleRange(seg: Pick<Segment, "start" | "frames">, fps: number)
   return [Math.round((f0 * SAMPLE_RATE) / fps), Math.round(((f0 + seg.frames) * SAMPLE_RATE) / fps)];
 }
 
-const fmtSec = (x: number) => x.toFixed(6);
-
-/** The fade/pad chain applied to every audio piece (n = exact sample count). */
-export function audioPieceFilter(n: number, fadeMs: number): string {
-  const dur = n / SAMPLE_RATE;
-  const fade = Math.min(fadeMs / 1000, dur / 2);
-  const parts = [`atrim=end_sample=${n}`, "asetpts=PTS-STARTPTS", `apad=whole_len=${n}`];
-  if (fade > 0) parts.push(`afade=t=in:d=${fmtSec(fade)}`, `afade=t=out:st=${fmtSec(dur - fade)}:d=${fmtSec(fade)}`);
-  return parts.join(",");
-}
-
-/**
- * Pure: ffmpeg args for one sample-exact audio piece. With a parsed s16le/48k/stereo layout the
- * input is opened as raw PCM at the exact byte of sample s0 (O(1) seek, byte-identical to
- * atrim=start_sample, which has to stream the whole file up to the in-point). Otherwise falls
- * back to the spike's atrim=start_sample:end_sample. `wav === null` means the clip has no audio.
- */
-export function audioPieceArgs(wav: string | null, layout: WavLayout | null, range: [number, number], fadeMs: number, out: string): string[] {
-  const [s0, s1] = range;
-  const n = s1 - s0;
-  const tail = ["-ac", "2", "-ar", String(SAMPLE_RATE), "-c:a", "pcm_s16le", "-f", "wav", out];
-  if (!wav) return ["-f", "lavfi", "-i", `anullsrc=r=${SAMPLE_RATE}:cl=stereo`, "-af", `atrim=end_sample=${n}`, ...tail];
-  if (layout && layout.format === 1 && layout.bits === 16 && layout.channels === 2 && layout.sampleRate === SAMPLE_RATE) {
-    return [
-      "-f", "s16le", "-ar", String(SAMPLE_RATE), "-ch_layout", "stereo",
-      "-skip_initial_bytes", String(layout.dataOffset + s0 * 4), "-i", wav,
-      "-af", audioPieceFilter(n, fadeMs), ...tail,
-    ];
-  }
-  return ["-i", wav, "-af", `atrim=start_sample=${s0}:end_sample=${s1},${audioPieceFilter(n, fadeMs)}`, ...tail];
-}
-
-export type SegmentFiles = { video: string; audio: string; key: string; audioKey: string };
+export type SegmentFiles = { video: string; key: string };
 export type EnsureResult = {
   profile: EncodeProfile;
   files: SegmentFiles[]; // in timeline order
@@ -154,7 +122,7 @@ export type EnsureOptions = MediaOptions & {
 
 export function segmentDirs(slug: string, profile: ProfileName) {
   const root = join(projectPaths(slug).cacheDir, "segments");
-  return { video: join(root, profile), audio: join(root, "audio") };
+  return { video: join(root, profile) };
 }
 
 /**
@@ -188,8 +156,6 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
   const fps = timeline.fps;
   const profile = resolveProfile(profileName, config.output, fps);
   const sig = profileSignature(profile);
-  const fadeMs = config.edit.fadeMs;
-  const audioSig = `audio:${SAMPLE_RATE}:s16:stereo:fade${fadeMs}`;
   const dirs = segmentDirs(slug, profileName);
   const log = opts.log ?? join(projectPaths(slug).runsDir, `${profileName}.log`);
 
@@ -210,31 +176,19 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
     const clip = byId.get(seg.clipId)!;
     const stat = stats.get(clip.id)!;
     const key = segmentKey(clip, seg, sig, fps, stat);
-    const audioKey = segmentKey(clip, seg, audioSig, fps, stat);
-    return { key, audioKey, video: join(dirs.video, `${key}.mp4`), audio: join(dirs.audio, `${audioKey}.wav`) };
+    return { key, video: join(dirs.video, `${key}.mp4`) };
   });
 
   // unique missing work, in timeline order
-  type Job = { seg: Segment; clip: Clip; f: SegmentFiles; video: boolean; audio: boolean };
+  type Job = { seg: Segment; clip: Clip; f: SegmentFiles };
   const jobs: Job[] = [];
   const seen = new Set<string>();
   timeline.segments.forEach((seg, i) => {
     const f = files[i]!;
-    const id = `${f.key}/${f.audioKey}`;
-    if (seen.has(id)) return;
-    seen.add(id);
-    const video = !existsSync(f.video);
-    const audio = !existsSync(f.audio);
-    if (video || audio) jobs.push({ seg, clip: byId.get(seg.clipId)!, f, video, audio });
+    if (seen.has(f.key)) return;
+    seen.add(f.key);
+    if (!existsSync(f.video)) jobs.push({ seg, clip: byId.get(seg.clipId)!, f });
   });
-
-  // clip wavs (render audio source) must exist before cutting pieces
-  const layouts = new Map<string, WavLayout | null>();
-  for (const clipId of new Set(jobs.filter((j) => j.audio && j.clip.hasAudio).map((j) => j.clip.id))) {
-    const clip = byId.get(clipId)!;
-    const { wav } = await prepareClip(slug, clip, { only: ["wav"], config, signal: opts.signal, log });
-    layouts.set(clipId, await readWavLayout(wav));
-  }
 
   const total = jobs.length;
   let done = 0;
@@ -243,13 +197,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
 
   await pool(jobs, opts.concurrency ?? 2, async (job) => {
     const { seg, clip, f } = job;
-    if (job.video) await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part), { signal: opts.signal, log }));
-    if (job.audio) {
-      const wav = clip.hasAudio ? projectPaths(slug).wav(clip.id) : null;
-      const layout = layouts.get(clip.id) ?? null;
-      await atomicOutput(f.audio, (part) =>
-        ffmpeg(audioPieceArgs(wav, layout, sampleRange(seg, fps), fadeMs, part), { signal: opts.signal, log }));
-    }
+    await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part), { signal: opts.signal, log }));
     done++;
     opts.onProgress?.(done / total, `Encoded ${done}/${total} ${label} segments`);
   }, opts.signal);

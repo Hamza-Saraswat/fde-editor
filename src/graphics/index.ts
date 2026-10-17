@@ -13,7 +13,7 @@ import {
   type Asset, type Edit, type Overlay, type Project, type Timeline, type Transcript,
 } from "../core/schema.ts";
 import { loadConfig, loadProject, readJsonIfExists } from "../core/store.ts";
-import { buildTimeline, keptWordIds, sourceToOutput } from "../core/timeline.ts";
+import { buildTimeline, keptWordIds, wordToOutput } from "../core/timeline.ts";
 import type { GraphicState, GraphicStatus } from "../server/api.ts";
 import { checkComposition, mediaDuration, movToPreviewWebm, renderComposition, snapshotComposition, stageKit } from "./hyperframes.ts";
 
@@ -84,10 +84,9 @@ function wordsInWindow(ctx: Ctx, start: number, end: number) {
   const out: { t: number; end: number; text: string }[] = [];
   for (const w of ctx.transcript.words) {
     if (!kept.has(w.id)) continue;
-    const t = sourceToOutput(ctx.timeline, w.clipId, w.start);
-    if (t === null || t < start - 0.05 || t > end) continue;
-    const te = sourceToOutput(ctx.timeline, w.clipId, w.end) ?? t + (w.end - w.start);
-    out.push({ t: Math.max(0, Math.round((t - start) * 100) / 100), end: Math.round((te - start) * 100) / 100, text: w.text });
+    const at = wordToOutput(ctx.timeline, w);
+    if (!at || at.start < start - 0.05 || at.start > end) continue;
+    out.push({ t: Math.max(0, Math.round((at.start - start) * 100) / 100), end: Math.round((at.end - start) * 100) / 100, text: w.text });
   }
   return out;
 }

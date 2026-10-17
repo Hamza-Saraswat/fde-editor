@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ConfigSchema, type Clip, type Cut, type Edit, type TakeGroup, type Transcript, type Word } from "../src/core/schema.ts";
-import { buildTimeline, keptWordIds, outputToSource, sourceToOutput } from "../src/core/timeline.ts";
+import { buildTimeline, keptWordIds, outputToSource, sourceToOutput, trimToRemoval, wordToOutput } from "../src/core/timeline.ts";
 
 // ---------- helpers ----------
 
@@ -247,5 +247,35 @@ describe("snapping never clips a kept word", () => {
     const seg = tl.segments.find((x) => x.end > 26.5)!;
     expect(seg.start).toBeLessThanOrEqual(26.32); // 26.32 * 30 = 789.6 -> frame 789, not 790
     expect(sourceToOutput(tl, "c1", 26.32)).not.toBeNull();
+  });
+});
+
+describe("cuts win over sloppy word stamps", () => {
+  it("a cut over the edge of a kept word trims that edge instead of being overruled", () => {
+    // real take: "more. [uh] One," — the sweep cut the uh at 137.24–137.47, but Parakeet stamped "One,"
+    // from 137.36, and the word's stamp used to put 110 ms of the uh back
+    const ws = words("c1", [["more.", 136.48, 136.6], ["One,", 137.36, 137.84]]);
+    const c = cut("c1", 137.24, 137.47);
+    const tl = buildTimeline(editOf({ cuts: [c] }), transcriptOf(ws), [clip("c1", 140)], config(30));
+    const seg = tl.segments.find((s) => s.end > 137.6)!;
+    expect(seg.start).toBeGreaterThanOrEqual(137.46); // 137.47 snapped down one frame at most
+    expect(keptWordIds(editOf({ cuts: [c] }), transcriptOf(ws)).has(ws[1]!.id)).toBe(true);
+  });
+
+  it("trims only up to the word's midpoint, and ignores a trim that leaves under 60 ms", () => {
+    const w = { id: "x", clipId: "c1", text: "family", start: 0.69, end: 1.21 };
+    expect(trimToRemoval(w, [{ start: 1.01, end: 1.25 }])).toMatchObject({ start: 0.69, end: 1.01 });
+    expect(trimToRemoval(w, [{ start: 0.5, end: 0.8 }])).toMatchObject({ start: 0.8, end: 1.21 });
+    const short = { id: "y", clipId: "c1", text: "a", start: 1.0, end: 1.08 };
+    expect(trimToRemoval(short, [{ start: 0.9, end: 1.03 }])).toBe(short);
+  });
+
+  it("maps a trimmed word to output by its midpoint", () => {
+    const ws = words("c1", [["more.", 0.0, 0.2], ["One,", 0.36, 0.84]]);
+    const tl = buildTimeline(editOf({ cuts: [cut("c1", 0.24, 0.47)] }), transcriptOf(ws), [clip("c1", 3)], config(30));
+    expect(sourceToOutput(tl, "c1", 0.36)).toBeNull(); // its raw start is now cut material
+    const at = wordToOutput(tl, ws[1]!)!;
+    expect(at).not.toBeNull();
+    expect(at.end - at.start).toBeGreaterThan(0.3);
   });
 });

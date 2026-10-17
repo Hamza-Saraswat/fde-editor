@@ -99,6 +99,27 @@ export function keptWordIds(edit: Edit, transcript: Transcript): Set<string> {
 
 // ---------- the timeline ----------
 
+const MIN_KEPT = 0.06;
+
+/**
+ * A kept word's span with the parts an enabled cut covers taken off its edges. ASR stamps are coarse
+ * (Parakeet's are quantized to ~80 ms) and often run into a neighbouring "uh"; a cut placed from the
+ * audio knows better, so it wins over the stamp. A cut on the word's first half moves its start, one
+ * on its second half moves its end (a cut over the midpoint removes the word instead). A trim that
+ * would leave less than 60 ms of the word is ignored.
+ */
+export function trimToRemoval(w: Word, ranges: Range[]): Word {
+  let { start, end } = w;
+  const m = mid(w);
+  for (const r of ranges) {
+    if (r.end <= start + EPS || r.start >= end - EPS) continue;
+    if ((r.start + r.end) / 2 < m) start = Math.max(start, Math.min(r.end, m));
+    else end = Math.min(end, Math.max(r.start, m));
+  }
+  if (end - start < MIN_KEPT || (start === w.start && end === w.end)) return w;
+  return { ...w, start, end };
+}
+
 type Island = { first: Word; last: Word; startPad: number; endPad: number };
 type Built = { start: number; end: number; firstWordId: string };
 
@@ -119,11 +140,12 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
   let outFrame = 0;
 
   for (const clipId of edit.clipOrder) {
-    const words = idx.byClip.get(clipId) ?? [];
+    const cutRanges = removal.ranges.get(clipId) ?? [];
+    const words = (idx.byClip.get(clipId) ?? []).map((w) => (isRemoved(w) ? w : trimToRemoval(w, cutRanges)));
     const clip = clips.find((c) => c.id === clipId);
     const duration = clip?.duration ?? (words.at(-1)?.end ?? 0) + post;
     const blocked: Range[] = [
-      ...(removal.ranges.get(clipId) ?? []),
+      ...cutRanges,
       ...words.filter(isRemoved).map((w) => ({ start: w.start, end: w.end })),
     ];
 
@@ -296,6 +318,20 @@ export function sourceToOutput(timeline: Timeline, clipId: string, t: number): n
     if (s.clipId === clipId && t >= s.start - EPS && t <= s.end + EPS) {
       return s.outStart + clamp(t - s.start, 0, s.end - s.start);
     }
+  }
+  return null;
+}
+
+/**
+ * Output span of a kept word: the segment that holds its midpoint, with the stamp clamped to it (a cut
+ * may have trimmed the stamp's edge, so its raw start can fall inside cut material). Null when cut.
+ */
+export function wordToOutput(timeline: Timeline, w: Pick<Word, "clipId" | "start" | "end">): { start: number; end: number } | null {
+  const m = (w.start + w.end) / 2;
+  for (const s of timeline.segments) {
+    if (s.clipId !== w.clipId || m < s.start - EPS || m > s.end + EPS) continue;
+    const at = (t: number) => s.outStart + clamp(t - s.start, 0, s.end - s.start);
+    return { start: at(w.start), end: at(w.end) };
   }
   return null;
 }

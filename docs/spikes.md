@@ -155,3 +155,27 @@ He reported that some cuts were very noticeable and asked why a huge pause was k
 | Joins under 120 ms between words | 22 of 36 | 13 of 43 (median 0.15 s) |
 | um/uh still audible | 4 | 3 |
 | Kept words clipped | 0 | 0 |
+
+### (h, round 3) Holes at every join, and the last three ums (2026-10-17)
+
+The same take was traced further with `spikes/why-heard.ts`, which shows each filler the re-listen hears next to the edited and source loudness and the cuts nearby. A side-by-side mix of the old and new audio was made from the same timeline. That found four causes:
+
+1. **A hole in the sound at every join.** Each audio piece faded out over 30 ms and the next faded in over 30 ms. Where speech carries on across a cut, that left a near-silent gap: **−50 dB median** at the 14 joins inside speech. Fix: equal-power crossfade centred on each cut (`src/media/mixdown.ts`). Each piece carries a 15 ms handle past both ends, so the length is still exactly frames × 48000 / fps. Same timeline: median dip at those joins **−50 dB → −9 dB**, joins worse than −10 dB **14 → 7**. What's left is the natural quiet already in the recording at those points. The per-segment audio pieces are gone. The mix is built in Node from the clip WAV in well under a second.
+2. **Cuts overruled by word stamps.** The timeline kept every kept word's full stamp, so a cut over the edge of a word did nothing there. Example: "One," was stamped from 137.36, inside the "uh" cut at 137.24–137.47, and 110 ms of the "uh" came back. Fix: an enabled cut now trims a kept word's edge, up to the word's midpoint (`trimToRemoval`). X-clip captions and graphics word timing map words by midpoint (`wordToOutput`), as the SRT and the UI already did.
+3. **An "uh" heard across a join was skipped.** The re-listen's stamp spanned the join, so it mapped to a source range of 2.5 s and hit the "too ambiguous" rule. Fix: the heard span is split at the join, and the side with voice in it is used.
+4. **Cut edges in fillers that run into a word.**
+   - A 10 ms click inside the gap before "One" read as voice and bridged the gap. Fix: median-of-3 smoothing in `voicedCore`.
+   - When the voice really does run on, the re-listen's word edge is the only boundary. But Parakeet's stamps run up to ~0.1 s early, so it is now a fallback only, and the cut goes at the quietest point near that edge.
+   - A filler "heard" where the edited audio has no voice is skipped. Parakeet sometimes writes "uh" into a pause or over a lip click.
+
+| | Round 2 | Round 3 |
+|---|---|---|
+| Edited length | 2:00 | 2:00 |
+| Silences ≥ 0.55 s in the edit | 1 (0.73 s) | 1 (0.73 s, a paragraph change) |
+| Level at joins inside speech (median) | −50 dB (a hole) | −9 dB |
+| um/uh still audible (with voice in the edited audio) | 3 | **0** |
+| "uh" the re-listen writes into silence | — | 2 (a pause, a lip click) |
+| Kept words clipped | 0 | 0 |
+| Word error rate vs. the kept words | 0.033 | 0.036 |
+
+Still open: visual jump cuts. Every cut in one continuous take moves the head slightly. Audio can't hide that. The usual fix is a punch-in, a small zoom on alternating segments.

@@ -6,7 +6,7 @@ import { ConfigSchema, type Clip, type Timeline } from "../src/core/schema.ts";
 import { probeClip } from "../src/media/probe.ts";
 import { loudnormFilter, parseLoudnormJson } from "../src/media/loudness.ts";
 import {
-  audioPieceArgs, profileSignature, resolveProfile, sampleRange, segmentKey, videoSegmentArgs,
+  profileSignature, resolveProfile, sampleRange, segmentKey, videoSegmentArgs,
 } from "../src/media/segments.ts";
 import {
   concatList, finalBitrateMbps, overlayFiltergraph, sideAudioChain, sideVideoChain,
@@ -83,16 +83,8 @@ describe("render arg builders", () => {
     expect(vf).toContain("format=yuv420p");
   });
 
-  it("audio pieces are sample exact", () => {
+  it("segments map to sample-exact audio ranges", () => {
     expect(sampleRange({ start: 2, frames: 45 }, 30)).toEqual([96000, 168000]);
-    const layout = { dataOffset: 78, channels: 2, sampleRate: 48000, bits: 16, format: 1 };
-    const fast = audioPieceArgs("/a.wav", layout, [96000, 168000], 30, "/o.wav");
-    expect(fast).toEqual(expect.arrayContaining(["-skip_initial_bytes", String(78 + 96000 * 4)]));
-    expect(fast[fast.indexOf("-af") + 1]).toBe(
-      "atrim=end_sample=72000,asetpts=PTS-STARTPTS,apad=whole_len=72000,afade=t=in:d=0.030000,afade=t=out:st=1.470000:d=0.030000");
-    const slow = audioPieceArgs("/a.wav", null, [96000, 168000], 30, "/o.wav");
-    expect(slow[slow.indexOf("-af") + 1]).toMatch(/^atrim=start_sample=96000:end_sample=168000,/);
-    expect(audioPieceArgs(null, null, [0, 4800], 30, "/o.wav")).toEqual(expect.arrayContaining(["anullsrc=r=48000:cl=stereo", "atrim=end_sample=4800"]));
   });
 
   it("concat list escapes quotes", () => {
@@ -180,10 +172,8 @@ describe("segment cache, preview and final (synthetic media)", () => {
     const aDur = Number(probeVal(paths.preview, "stream=duration", "a:0"));
     expect(Math.abs(vDur - totalFrames / FPS)).toBeLessThan(0.001);
     expect(Math.abs(aDur - vDur)).toBeLessThan(0.001);
-    // the cached PCM pieces add up to exactly the video length, sample for sample
-    const audioDir = segments.segmentDirs("r1", "preview").audio;
-    const samples = readdirSync(audioDir).filter((f) => f.endsWith(".wav"))
-      .reduce((n, f) => n + Number(probeVal(join(audioDir, f), "stream=duration_ts", "a:0")), 0);
+    // the crossfaded mix is exactly the video length, sample for sample
+    const samples = Number(probeVal(join(paths.cacheDir, "preview.wav"), "stream=duration_ts", "a:0"));
     expect(samples).toBe((totalFrames / FPS) * 48000);
 
     const warm = await render.buildPreview("r1", timeline, { clips: [clip], config });
@@ -205,7 +195,7 @@ describe("segment cache, preview and final (synthetic media)", () => {
     const run = render.buildPreview("r1", fresh, { clips: [clip], config, signal: ac.signal, onProgress: (f) => f > 0 && ac.abort() });
     await expect(run).rejects.toThrow();
     const dirs = segments.segmentDirs("r1", "preview");
-    for (const d of [dirs.video, dirs.audio]) expect(readdirSync(d).filter((f) => f.includes(".part"))).toEqual([]);
+    for (const d of [dirs.video, paths.cacheDir]) expect(readdirSync(d).filter((f) => f.includes(".part"))).toEqual([]);
     // the next run picks up where the cancelled one stopped
     const resumed = await render.buildPreview("r1", fresh, { clips: [clip], config });
     expect(resumed.encoded).toBeLessThan(fresh.segments.length);
