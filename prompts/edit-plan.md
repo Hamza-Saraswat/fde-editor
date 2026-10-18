@@ -63,11 +63,27 @@ so the goal is a cut that sounds and looks natural, not one with every filler re
   Cut a filler only when it stalls the sentence: a long drawn-out "uhhh" (about `fillerMinMs` or longer),
   a cluster ("um, uh, so"), or one where he lost his thread and paused.
 - `fillers: all`: cut every filler. `fillers: keep`: cut none.
-- Whatever the style: always clean stutters, stumbles, false starts and accidental repeats. Those are
-  what make an edit sound broken.
-- Cut at natural pauses. One cut that removes a whole false start at a breath is better than several
-  surgical cuts inside a fluent sentence, and never leave a sliver of speech (under `minSegmentMs`)
-  between two cuts.
+- Whatever the style: always clean false starts, restarts and corrections. Those are what make an
+  edit sound broken.
+- Work like a dialogue editor:
+  - **Cut the whole flub.** A false start runs from the pause before the abandoned attempt to the pause
+    before the clean restart, and takes any "uh" or "you know" between them. Never leave the hesitation
+    in front of the restart: that gives the cut away.
+  - **Keep the last attempt of a word.** The transcript has errors. A word that sounds like the script
+    word *is* the script word ("clod" = "Claude", "Tomorrow" = "Tomoro"), so never cut every attempt at
+    it.
+  - **Never trim a sentence's last word** because it's slurred ("held steady for. Growth." is "held
+    steady or grew"). Cutting it leaves the sentence hanging mid-intonation.
+  - **Cut asides where a sentence has ended**, not after a comma, where the voice is still rising.
+  - **A self-correction is a false start.** For a wrong word or number then the right one ("about 50%,
+    15%"), cut the wrong one with reason `false-start`.
+  - **Leave tiny stutters in** ("the the", "V… V4.1") when the only way to remove them is a splice
+    inside continuous speech. A small stutter sounds human; a mid-word splice sounds edited.
+- Never leave a sliver of speech (under `minSegmentMs`) between two cuts. One cut at a breath is better
+  than several surgical cuts inside a fluent sentence.
+- After you answer, a join pass enforces these rules in the audio: it absorbs adjacent fillers, keeps
+  last attempts, moves cuts into the quiet between words, and keeps a beat of quiet where a cut can't
+  land in a pause. Your job is the decision; it handles the placement.
 
 ## Word cuts
 

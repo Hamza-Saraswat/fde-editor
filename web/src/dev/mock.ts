@@ -17,7 +17,7 @@ const nowIso = () => new Date().toISOString();
 
 const CONFIG: Config = {
   output: { width: 2560, height: 1440, fps: 30 },
-  edit: { preMs: 80, postMs: 120, maxPauseMs: 500, fadeMs: 30, fillerGapMs: 250, punchInZoom: 1.1, style: { fillers: "natural", fillerMinMs: 400, minSegmentMs: 1200, jumpCuts: "soft", softFrames: 4 } },
+  edit: { preMs: 80, postMs: 120, maxPauseMs: 500, fadeMs: 30, fillerGapMs: 250, punchInZoom: 1.1, style: { fillers: "natural", disfluencies: "natural", fillerMinMs: 400, minSegmentMs: 1200, jumpCuts: "punch-in", softFrames: 4 } },
   transcription: { engine: "local", localEngine: "parakeet", localModel: "medium.en" },
   claude: { model: "opus", maxTurns: 40 },
   loudness: { I: -14, TP: -1.5, LRA: 11 },

@@ -187,9 +187,11 @@ describe("overlays and chapters", () => {
     const o = shifted.overlays[0]!;
     near(o.start, sourceToOutput(shifted, "c1", 2.85)! + 0.25);
     near(o.end - o.start, 1.0);
-    // anchor on a cut word: the next kept word takes over
+    // anchor on a cut word: the next kept word takes over, and the graphic appears on the cut just before it
     const onCut = buildTimeline(editOf({ overlays: [{ ...overlay, anchorWordId: id(1) }], cuts: [cut("c1", 1.5, 2.3)] }), t, clips, config(30));
-    near(onCut.overlays[0]!.start, sourceToOutput(onCut, "c1", 2.4)!);
+    const join = onCut.segments.find((s) => s.start >= 2.2)!.outStart;
+    expect(Math.abs(sourceToOutput(onCut, "c1", 2.4)! - join)).toBeLessThan(0.3);
+    near(onCut.overlays[0]!.start, join);
   });
 
   it("drops overlays shorter than half a second and disabled ones", () => {
@@ -284,9 +286,19 @@ describe("punch-ins", () => {
   const ws = words("c1", [["a", 1.0, 1.4], ["b", 2.0, 2.4], ["c", 3.0, 3.4], ["d", 4.0, 4.4]]);
   const cuts = [cut("c1", 1.5, 1.9), cut("c1", 2.5, 2.9), cut("c1", 3.5, 3.9)];
 
-  it("are off unless the edit turns them on", () => {
-    const tl = buildTimeline(editOf({ cuts }), transcriptOf(ws), [clip("c1", 10)], config(30));
-    expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, undefined, undefined, undefined]);
+  it("are the default jump-cut treatment, and off when the style says hard cuts", () => {
+    const on = buildTimeline(editOf({ cuts }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    expect(on.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, undefined, 1.1]);
+    const hard = buildTimeline(editOf({ cuts, style: { jumpCuts: "none" } }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    expect(hard.segments.map((s) => s.zoom)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it("don't switch under a full-frame cutaway, so the framing matches on both sides of it", () => {
+    // a full graphic over the second cut: segments 2 and 3 keep the same zoom
+    const full = { id: "o1", cueId: "r5", anchorWordId: ws[1]!.id, endWordId: ws[2]!.id, offsetMs: 0, layout: "full" as const, enabled: true, brief: "", assetIds: [], status: "none" as const };
+    const tl = buildTimeline(editOf({ cuts, overlays: [full] }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    expect(tl.overlays).toHaveLength(1);
+    expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, 1.1, undefined]);
   });
 
   it("zoom every other segment of one take, and restart unzoomed on a new clip", () => {

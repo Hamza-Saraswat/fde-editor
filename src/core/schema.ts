@@ -243,7 +243,10 @@ export const CutSchema = z.object({
   enabled: z.boolean(),
   note: z.string().optional(),
   pinned: z.boolean().optional(), // the user turned it on or off by hand: the edit style never overrides it
-  wanted: z.boolean().optional(), // a filler cut's planner decision, before the edit style filtered it
+  wanted: z.boolean().optional(), // the planner's decision, before the edit style and the join pass changed it
+  orig: z.object({ start: z.number(), end: z.number() }).optional(), // the planner's bounds, before the join pass moved them
+  breathe: z.number().optional(), // ms of quiet kept at this join (a content cut that can't land in a pause)
+  join: z.object({ quietBefore: z.boolean(), quietAfter: z.boolean(), continuation: z.boolean(), newSentence: z.boolean() }).optional(),
 });
 export type Cut = z.infer<typeof CutSchema>;
 
@@ -298,10 +301,13 @@ export type Edit = z.infer<typeof EditSchema>;
  * How hard the edit cuts. Fillers: "natural" cuts only stalls (≥ fillerMinMs) and keeps the short
  * "uh"s of normal speech, "all" cuts every filler, "keep" none. Stutters, restarts and false starts are
  * always cut. minSegmentMs drops a filler cut that would leave a sliver of video between two jumps.
- * jumpCuts: "soft" dissolves softFrames across a cut inside one take, "punch-in" alternates a zoom.
+ * disfluencies: "natural" keeps a tiny stutter when cutting it would splice inside continuous speech,
+ * "clean" cuts them anyway, "light" keeps every stutter (only false starts, corrections and asides go).
+ * jumpCuts: "punch-in" alternates a zoom, "soft" dissolves softFrames across a cut inside one take.
  */
 const STYLE = {
   fillers: z.enum(["natural", "all", "keep"]),
+  disfluencies: z.enum(["natural", "clean", "light"]),
   fillerMinMs: z.number().min(0),
   maxPauseMs: z.number().min(100).max(3000), // the channel default is edit.maxPauseMs in the config
   minSegmentMs: z.number().min(0),
@@ -310,10 +316,11 @@ const STYLE = {
 };
 export const EditStyleSchema = z.object({
   fillers: STYLE.fillers.default("natural"),
+  disfluencies: STYLE.disfluencies.default("natural"),
   fillerMinMs: STYLE.fillerMinMs.default(400),
   maxPauseMs: STYLE.maxPauseMs.optional(),
   minSegmentMs: STYLE.minSegmentMs.default(1200),
-  jumpCuts: STYLE.jumpCuts.default("soft"),
+  jumpCuts: STYLE.jumpCuts.default("punch-in"),
   softFrames: STYLE.softFrames.default(4),
 });
 export type EditStyle = z.infer<typeof EditStyleSchema>;

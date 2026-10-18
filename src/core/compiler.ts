@@ -12,6 +12,7 @@ export type CompileContext = {
   candidates: Candidates;
   clips: Clip[];
   previous?: Edit | null;
+  keepGraphics?: boolean; // re-plan the cut only: keep the previous edit's graphics (briefs, anchors, sides) as they are
 };
 
 export type CompileResult = { edit: Edit; warnings: string[] };
@@ -355,6 +356,10 @@ export function planToEdit(plan: EditPlan, ctx: CompileContext): CompileResult {
       }
     }
   });
+
+  // Re-planning the cut alone keeps the built graphics: word ids are stable (same transcript), so their
+  // anchors still resolve, and their briefs are untouched, so nothing needs designing again.
+  if (ctx.keepGraphics && previous) overlays.splice(0, overlays.length, ...previous.overlays);
 
   const edit: Edit = {
     version: (previous?.version ?? 0) + 1,

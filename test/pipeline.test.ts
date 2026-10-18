@@ -7,7 +7,7 @@ import type { ClaudeEvent } from "../src/claude/runner.ts";
 import { projectPaths } from "../src/core/paths.ts";
 import { ConfigSchema, type Edit, type Overlay } from "../src/core/schema.ts";
 import { graphicsStage, graphicsTargets } from "../src/pipeline/graphics.ts";
-import { planStage } from "../src/pipeline/plan.ts";
+import { planStage, type PlanStageOptions } from "../src/pipeline/plan.ts";
 import { renderStage } from "../src/pipeline/render.ts";
 import { transcribeStage } from "../src/pipeline/transcribe.ts";
 import { clipCaptionWords, finalCaptionWords, xclipsStage } from "../src/pipeline/xclips.ts";
@@ -174,7 +174,7 @@ describe("graphics stage", () => {
 
 describe("plan stage", () => {
   it("needs candidates first", async () => {
-    await expect(planStage(SLUG, fakeCtx().ctx, { planEdit: vi.fn() })).rejects.toThrow(/run Transcribe first/);
+    await expect(planStage(SLUG, fakeCtx<PlanStageOptions>().ctx, { planEdit: vi.fn() })).rejects.toThrow(/run Transcribe first/);
   });
 
   it("forwards Claude events and chains a preview", async () => {
@@ -190,7 +190,7 @@ describe("plan stage", () => {
         return { plan: {} as never, edit: baseEdit(), warnings: ["take 3: unknown word id w99; skipped"], costUsd: 0.42 };
       },
     };
-    const { ctx, events, chained, progress } = fakeCtx();
+    const { ctx, events, chained, progress } = fakeCtx<PlanStageOptions>();
     const msg = await planStage(SLUG, ctx, deps);
     expect(events.filter((e) => e.type === "claude")).toEqual(claudeEvents.map((event) => ({ type: "claude", stage: "plan", event })));
     expect(events).toContainEqual({ type: "log", stage: "plan", line: "warning: take 3: unknown word id w99; skipped" });

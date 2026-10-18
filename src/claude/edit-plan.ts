@@ -4,7 +4,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { planToEdit } from "../core/compiler.ts";
-import { applyStyle, resolveStyle, type Style } from "../core/style.ts";
+import { resolveStyle, type Style } from "../core/style.ts";
+import { restyle } from "../pipeline/restyle.ts";
 import { PROMPTS_DIR, REPO_ROOT, projectPaths } from "../core/paths.ts";
 import {
   CandidatesSchema, EditPlanSchema, EditSchema, ScriptDocSchema, TranscriptSchema,
@@ -14,6 +15,7 @@ import { loadConfig, loadProject, readJson, readJsonIfExists, writeJson } from "
 import { runClaude, type ClaudeEvent } from "./runner.ts";
 
 export type PlanEditOptions = {
+  keepGraphics?: boolean; // re-plan the cut only; graphics stay as they are
   signal?: AbortSignal;
   onEvent?: (e: ClaudeEvent) => void;
   bin?: string; // claude executable override (tests)
@@ -31,10 +33,11 @@ export type PreparedPlan = {
   systemPromptFile: string; // appended to Claude's system prompt
   ctx: { config: Config; project: Project; script: ScriptDoc; transcript: Transcript; candidates: Candidates; previous: Edit | null };
   warnings: string[];
+  keepGraphics?: boolean; // re-plan the cut only, keeping the previous edit's graphics
 };
 
 /** Load the project and write runs/plan-input.json: everything a planner needs, nothing else. */
-export async function preparePlan(slug: string): Promise<PreparedPlan> {
+export async function preparePlan(slug: string, opts: { keepGraphics?: boolean } = {}): Promise<PreparedPlan> {
   const paths = projectPaths(slug);
   const warnings: string[] = [];
   const [config, project, script, transcript, candidates, previous] = await Promise.all([
@@ -60,6 +63,7 @@ export async function preparePlan(slug: string): Promise<PreparedPlan> {
   return {
     slug, inputFile, prompt, systemPromptFile: join(PROMPTS_DIR, "edit-plan.md"),
     ctx: { config, project, script, transcript, candidates, previous }, warnings,
+    keepGraphics: Boolean(opts.keepGraphics && previous),
   };
 }
 
@@ -70,16 +74,16 @@ export async function applyPlan(prep: PreparedPlan, structured: unknown): Promis
   const paths = projectPaths(prep.slug);
   const { script, transcript, candidates, project, previous } = prep.ctx;
   const plan = await writeJson(paths.plan, EditPlanSchema, parsed.data);
-  const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous: previous ?? undefined });
-  // the edit style decides which filler cuts stay on (natural: only stalls) and drops sliver segments
-  const styled = applyStyle(compiled.edit, resolveStyle(prep.ctx.config, compiled.edit));
+  const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous: previous ?? undefined, keepGraphics: prep.keepGraphics });
+  // the edit style and the join pass: which fillers and stutters stay, where each cut lands
+  const styled = await restyle(prep.slug, compiled.edit, { config: prep.ctx.config, clips: project.clips, transcript, script });
   const edit = await writeJson(paths.edit, EditSchema, styled);
   return { plan, edit, warnings: [...prep.warnings, ...compiled.warnings] };
 }
 
 export async function planEdit(slug: string, opts: PlanEditOptions = {}): Promise<PlanEditResult> {
   const paths = projectPaths(slug);
-  const prep = await preparePlan(slug);
+  const prep = await preparePlan(slug, { keepGraphics: opts.keepGraphics });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   let costUsd = 0;
   let lastError = "";

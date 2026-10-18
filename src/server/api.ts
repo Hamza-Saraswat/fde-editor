@@ -70,6 +70,7 @@ export type StageOptions = {
   render?: Record<string, never>;
   xclips?: { count?: number };
   import?: { then?: "transcribe" | "preview" }; // after a picture fix: rebuild the preview, don't re-transcribe
+  plan?: { keepGraphics?: boolean }; // re-plan the cut only; graphics stay as they are
   preview?: { sweep?: boolean }; // listen to the built preview and cut any um/uh still audible
 };
 export type RunStageBody = { options?: StageOptions[keyof StageOptions] };

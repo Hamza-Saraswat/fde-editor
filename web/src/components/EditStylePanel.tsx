@@ -51,6 +51,8 @@ export function EditStylePanel() {
 
   const tl = state.bundle?.timeline;
   const lens = tl ? tl.segments.map((s) => s.frames / tl.fps) : [];
+  const judged = edit.cuts.filter((c) => c.enabled && c.join);
+  const inPause = judged.filter((c) => c.join!.quietBefore || c.join!.quietAfter).length;
   const joins = Math.max(0, lens.length - 1);
   const perMin = tl && tl.duration > 0 ? (joins / tl.duration) * 60 : 0;
 
@@ -73,6 +75,19 @@ export function EditStylePanel() {
             ]}
           />
         </div>
+        <div className="flex items-center gap-2 px-2 py-1">
+          <span className="flex-1 text-[12.5px] text-ink">Stutters</span>
+          <Segmented
+            label="Which stutters to cut"
+            value={style.disfluencies}
+            onChange={(disfluencies) => void change({ disfluencies })}
+            options={[
+              { value: "natural", label: "Natural", title: "Keep a tiny stutter when cutting it would splice inside continuous speech", disabled: busy },
+              { value: "clean", label: "Clean", title: "Cut every stutter", disabled: busy },
+              { value: "light", label: "Light", title: "Keep stutters; cut only false starts, corrections and asides", disabled: busy },
+            ]}
+          />
+        </div>
         {style.fillers === "natural" && (
           <Choice label="Cut stalls longer than" value={style.fillerMinMs} options={[250, 300, 400, 500, 700, 1000]} disabled={busy} onChange={(fillerMinMs) => void change({ fillerMinMs })} />
         )}
@@ -85,9 +100,9 @@ export function EditStylePanel() {
             value={style.jumpCuts}
             onChange={(jumpCuts) => void change({ jumpCuts })}
             options={[
-              { value: "soft", label: "Soft", title: `A ${style.softFrames}-frame dissolve across each cut`, disabled: busy },
-              { value: "punch-in", label: "Punch-in", title: "Zoom in a little on every other section (camera footage)", disabled: busy },
-              { value: "none", label: "Hard", disabled: busy },
+              { value: "punch-in", label: "Punch-in", title: "Zoom in a little on every other section; cuts under a full-screen cutaway don't switch", disabled: busy },
+              { value: "none", label: "Hard", title: "Plain jump cuts", disabled: busy },
+              { value: "soft", label: "Dissolve", title: `A ${style.softFrames}-frame dissolve across each cut`, disabled: busy },
             ]}
           />
         </div>
@@ -106,6 +121,7 @@ export function EditStylePanel() {
       {tl && (
         <p className="meta mt-2 px-2 tc">
           {joins} cuts · {perMin.toFixed(1)} a minute · {lens.filter((l) => l < 1).length} pieces under 1 s
+          {judged.length ? ` · ${Math.round((100 * inPause) / judged.length)}% land in a pause` : ""}
         </p>
       )}
     </section>

@@ -8,7 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { REPO_ROOT, projectPaths } from "../core/paths.ts";
 import { EditSchema, EditStyleOverridesSchema, StageName, TranscriptSchema, type Project } from "../core/schema.ts";
-import { applyStyle, resolveStyle } from "../core/style.ts";
+import { restyle } from "../pipeline/restyle.ts";
 import { listProjects, loadProject, readJsonIfExists, setStage, writeJson } from "../core/store.ts";
 import { buildTimeline } from "../core/timeline.ts";
 import { runStage } from "../pipeline/index.ts";
@@ -60,6 +60,7 @@ const STAGE_OPTIONS: Partial<Record<StageName, z.ZodType>> = {
   }),
   xclips: z.object({ count: z.number().int().min(1).max(3).optional() }),
   import: z.object({ then: z.enum(["transcribe", "preview"]).optional() }),
+  plan: z.object({ keepGraphics: z.boolean().optional() }),
   preview: z.object({ sweep: z.boolean().optional() }), // sweep: listen back and cut leftover ums
 };
 
@@ -338,7 +339,7 @@ export function createApp(deps: AppDeps = {}): ServerApp {
       const merged: Record<string, unknown> = { ...stored.style, ...set };
       for (const k of cleared) delete merged[k];
       const withStyle = { ...stored, style: EditStyleOverridesSchema.parse(merged) };
-      const next = { ...applyStyle(withStyle, resolveStyle(config, withStyle)), version: stored.version + 1 };
+      const next = { ...(await restyle(slug, withStyle, { config, clips: project.clips, transcript })), version: stored.version + 1 };
       const edit = await writeJson(p.edit, EditSchema, next);
       const timeline = buildTimeline(edit, transcript, project.clips, config);
       changed(slug);

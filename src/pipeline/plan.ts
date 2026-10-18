@@ -18,11 +18,14 @@ export function claudeEventLine(e: ClaudeEvent): string | null {
   }
 }
 
-export const planStage: StageFn = async (slug, ctx, deps) => {
+export type PlanStageOptions = { keepGraphics?: boolean } | undefined;
+
+export const planStage: StageFn<PlanStageOptions> = async (slug, ctx, deps) => {
   const d = withDeps(deps);
   if (!existsSync(projectPaths(slug).candidates)) throw new Error("No alignment yet — run Transcribe first");
-  ctx.progress(undefined, "Asking Claude to plan the edit");
+  ctx.progress(undefined, ctx.options?.keepGraphics ? "Asking Claude to re-plan the cut (graphics kept)" : "Asking Claude to plan the edit");
   const res = await d.planEdit(slug, {
+    keepGraphics: ctx.options?.keepGraphics,
     signal: ctx.signal,
     onEvent: (event) => {
       ctx.emit({ type: "claude", stage: "plan", event });

@@ -48,6 +48,9 @@ export function SetupView() {
     <div className="h-full overflow-auto">
       <div className="mx-auto grid max-w-[1080px] grid-cols-[1.1fr_1fr] gap-8 px-6 py-6">
         <p className="col-span-2 rounded-md border border-line bg-pane px-4 py-3 text-[13.5px] text-ink">{next}</p>
+        <p className="meta col-span-2 -mt-5 px-1">
+          Recording tip: after a flub, pause a beat and restart the whole sentence, without commenting on it. The editor keeps the clean second read. (docs/recording.md)
+        </p>
 
         <section aria-labelledby="clips-heading">
           <div className="mb-2 flex items-center">

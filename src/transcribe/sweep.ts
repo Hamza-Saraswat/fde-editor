@@ -13,8 +13,8 @@ import { EditSchema, TranscriptSchema, type Cut, type Edit, type Timeline, type 
 import { loadConfig, loadProject, readJson, writeJson } from "../core/store.ts";
 import { buildTimeline, keptWordIds } from "../core/timeline.ts";
 import { ffmpeg } from "../core/proc.ts";
-import { loadEnvelope, valley, voicedCore, type Envelope } from "../media/energy.ts";
-import { applyStyle, resolveStyle } from "../core/style.ts";
+import { valley, voicedCore, type Envelope } from "../media/energy.ts";
+import { loadClipEnvelopes, restyle } from "../pipeline/restyle.ts";
 import { findLeftovers } from "./leftovers.ts";
 import { transcribeLocalFile } from "./local.ts";
 
@@ -137,11 +137,7 @@ export async function sweepResidualFillers(slug: string, opts: { signal?: AbortS
     residual.push({ start: w.start, end: w.end, prevEnd: prev?.end, nextStart: next?.start });
   });
 
-  const envelopes = new Map<string, Envelope>();
-  for (const clip of project.clips) {
-    const f = [paths.asrWav(clip.id), paths.wav(clip.id)].find((x) => existsSync(x));
-    if (f) envelopes.set(clip.id, await loadEnvelope(f));
-  }
+  const envelopes = await loadClipEnvelopes(slug, project.clips);
   const { cuts: added, skipped } = planSweepCuts(residual, timeline, transcript, edit, envelopes);
   const fresh = added.filter((c) => !edit.cuts.some((x) => x.id === c.id));
   // cuts that chopped through speech (their words are still heard at the join): restore those words
@@ -152,10 +148,9 @@ export async function sweepResidualFillers(slug: string, opts: { signal?: AbortS
     // wanted: false so the edit style never turns it back on
     return l ? { ...c, enabled: false, wanted: false, note: `Restored: "${l.heard}" was still heard in the preview (the words run straight into the next one, so the cut only took part of them). Turn on to cut anyway.` } : c;
   });
-  // new filler cuts go through the edit style like any other (natural: only stalls are cut); ones the
-  // style turns down are dropped, so a sweep that changes nothing writes nothing
-  const style = resolveStyle(config, edit);
-  const styled = applyStyle({ ...edit, cuts: [...cuts, ...fresh.map((c) => ({ ...c, wanted: true }))] }, style);
+  // new filler cuts go through the edit style and the join pass like any other (natural: only stalls
+  // are cut); ones the style turns down are dropped, so a sweep that changes nothing writes nothing
+  const styled = await restyle(slug, { ...edit, cuts: [...cuts, ...fresh.map((c) => ({ ...c, wanted: true }))] }, { config, clips: project.clips, transcript, envelopes });
   const keptIds = new Set(fresh.filter((c) => styled.cuts.find((x) => x.id === c.id)?.enabled).map((c) => c.id));
   if (!keptIds.size && !restore.size) return { heardFillers: residual.length, added: 0, skipped: skipped + fresh.length, restored: 0 };
   const next = { ...styled, version: edit.version + 1, cuts: styled.cuts.filter((c) => !fresh.some((f) => f.id === c.id) || keptIds.has(c.id)) };

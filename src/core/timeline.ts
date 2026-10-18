@@ -101,6 +101,7 @@ export function keptWordIds(edit: Edit, transcript: Transcript): Set<string> {
 // ---------- the timeline ----------
 
 const MIN_KEPT = 0.06;
+const SNAP_TO_CUT = 0.3; // seconds a side graphic may shift to appear on a cut
 
 /**
  * A kept word's span with the parts an enabled cut covers taken off its edges. ASR stamps are coarse
@@ -143,6 +144,8 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
 
   for (const clipId of edit.clipOrder) {
     const cutRanges = removal.ranges.get(clipId) ?? [];
+    // joins the join pass gave a beat of quiet (a content cut that can't land in a pause)
+    const breaths = edit.cuts.filter((c) => c.enabled && c.clipId === clipId && c.breathe);
     const words = (idx.byClip.get(clipId) ?? []).map((w) => (isRemoved(w) ? w : trimToRemoval(w, cutRanges)));
     const clip = clips.find((c) => c.id === clipId);
     const duration = clip?.duration ?? (words.at(-1)?.end ?? 0) + post;
@@ -185,8 +188,10 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
         if (r.start < isl.first.start) lo = Math.max(lo, Math.min(r.end, isl.first.start));
         if (r.end > isl.last.end) hi = Math.min(hi, Math.max(r.start, isl.last.end));
       }
-      let start = Math.min(Math.max(isl.first.start - isl.startPad, lo), isl.first.start);
-      let end = Math.max(Math.min(isl.last.end + isl.endPad, hi), isl.last.end);
+      const breathIn = breaths.find((c) => c.end <= isl.first.start + EPS && isl.first.start - c.end < 0.6)?.breathe ?? 0;
+      const breathOut = breaths.find((c) => c.start >= isl.last.end - EPS && c.start - isl.last.end < 0.6)?.breathe ?? 0;
+      let start = Math.min(Math.max(isl.first.start - Math.max(isl.startPad, breathIn / 1000), lo), isl.first.start);
+      let end = Math.max(Math.min(isl.last.end + Math.max(isl.endPad, breathOut / 1000), hi), isl.last.end);
       start = Math.max(0, start);
       end = Math.min(duration, end);
       if (end <= start) continue;
@@ -216,15 +221,6 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
     }
   }
 
-  // Punch-ins: every other segment of a run from one clip is zoomed, so each jump cut changes the framing.
-  // A new clip (another take or angle) starts unzoomed.
-  if (style.jumpCuts === "punch-in" && config.edit.punchInZoom > 1) {
-    let zoomed = false;
-    segments.forEach((s, i) => {
-      zoomed = i > 0 && segments[i - 1]!.clipId === s.clipId ? !zoomed : false;
-      if (zoomed) s.zoom = config.edit.punchInZoom;
-    });
-  }
   // Soft jump cuts: a short dissolve centred on each join inside one take (not across clips). Both sides
   // lend half of it from material just past the cut, so they must exist in the clip and each segment must
   // keep at least as many frames of its own.
@@ -321,6 +317,35 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
     timeline.overlays.push({ overlayId: ov.id, cueId: ov.cueId, start, end } satisfies PlacedOverlay);
   }
   timeline.overlays.sort((x, y) => x.start - y.start);
+
+  // A side graphic that would appear just before or after a cut appears on the cut instead, so the cut
+  // reads as motivated by the graphic. The whole graphic shifts (its length is unchanged, so it isn't
+  // rebuilt), by at most SNAP_TO_CUT. A graphic the user nudged stays where they put it.
+  const joinsOut = segments.slice(1).map((s) => s.outStart);
+  const layoutOf = new Map(edit.overlays.map((o) => [o.id, o.layout]));
+  const nudged = new Set(edit.overlays.filter((o) => o.offsetMs).map((o) => o.id)); // a hand nudge wins
+  for (const ov of timeline.overlays) {
+    if (layoutOf.get(ov.overlayId) === "full" || nudged.has(ov.overlayId)) continue;
+    const near = joinsOut.reduce<number | null>((b, j) => (Math.abs(j - ov.start) <= SNAP_TO_CUT && (b === null || Math.abs(j - ov.start) < Math.abs(b - ov.start)) ? j : b), null);
+    if (near === null) continue;
+    const d = near - ov.start;
+    ov.start = clamp(ov.start + d, 0, timeline.duration);
+    ov.end = clamp(ov.end + d, 0, timeline.duration);
+  }
+
+  // Punch-ins: every other segment of a run from one clip is zoomed, so each jump cut changes the framing.
+  // A new clip (another take or angle) starts unzoomed. A cut hidden under a full-frame cutaway doesn't
+  // switch, so the framing is the same on both sides of the cutaway.
+  if (style.jumpCuts === "punch-in" && config.edit.punchInZoom > 1) {
+    const covered = (t: number) => timeline.overlays.some((o) => layoutOf.get(o.overlayId) === "full" && t > o.start + EPS && t < o.end - EPS);
+    let zoomed = false;
+    segments.forEach((s, i) => {
+      const prev = segments[i - 1];
+      if (!prev || prev.clipId !== s.clipId) zoomed = false;
+      else if (!covered(s.outStart)) zoomed = !zoomed;
+      if (zoomed) s.zoom = config.edit.punchInZoom;
+    });
+  }
 
   for (const ch of edit.chapters) {
     const w = resolve(ch.anchorWordId, 1);
