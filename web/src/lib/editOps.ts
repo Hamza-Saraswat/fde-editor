@@ -29,10 +29,11 @@ function mapOverlay(edit: Edit, overlayId: string, fn: (o: Overlay) => Overlay):
 
 // ---------- cuts ----------
 
-export const toggleCut = (edit: Edit, cutId: string): Edit => mapCut(edit, cutId, (c) => ({ ...c, enabled: !c.enabled }));
+// A cut the user turns on or off by hand is pinned: the edit style never overrides it afterwards.
+export const toggleCut = (edit: Edit, cutId: string): Edit => mapCut(edit, cutId, (c) => ({ ...c, enabled: !c.enabled, pinned: true }));
 
 export const setCutEnabled = (edit: Edit, cutId: string, enabled: boolean): Edit =>
-  mapCut(edit, cutId, (c) => (c.enabled === enabled ? c : { ...c, enabled }));
+  mapCut(edit, cutId, (c) => (c.enabled === enabled ? c : { ...c, enabled, pinned: true }));
 
 /** Next free id for a user cut: u1, u2 … */
 export function nextUserCutId(edit: Edit): string {
@@ -81,7 +82,7 @@ export function setReasonEnabled(edit: Edit, reason: Cut["reason"], enabled: boo
   const cuts = edit.cuts.map((c) => {
     if (c.reason !== reason || c.enabled === enabled) return c;
     changed = true;
-    return { ...c, enabled };
+    return { ...c, enabled, pinned: true };
   });
   return changed ? { ...edit, cuts } : edit;
 }

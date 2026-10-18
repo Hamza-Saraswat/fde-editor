@@ -1,7 +1,7 @@
 // The HTTP contract between the server (src/server) and the UI (web/). Types only.
 // All JSON. Media files are served from /media/:slug/<path relative to the project folder>.
 import type {
-  Asset, Candidates, Config, Edit, Project, Rect, ScriptDoc, StageName, StageStatus, Timeline, Transcript,
+  Asset, Candidates, Config, Edit, EditStyle, Project, Rect, ScriptDoc, StageName, StageStatus, Timeline, Transcript,
 } from "../core/schema.ts";
 import type { ClaudeEvent } from "../claude/runner.ts";
 
@@ -85,6 +85,7 @@ export type JobInfo = {
 export type SaveEditBody = { edit: Edit }; // edit.version must equal the stored version
 export type SaveEditResponse = { edit: Edit; timeline: Timeline };
 export type SaveEditConflict = { error: "conflict"; current: Edit };
+export type SetStyleBody = { style: Partial<EditStyle> }; // this video's overrides; the server re-applies the style
 
 export type PatchAssetBody = { cueId?: string | null; crop?: Rect | null; blur?: Rect[]; highlight?: Rect[] };
 
@@ -115,6 +116,7 @@ Routes
   POST   /api/projects/:slug/stages/:stage RunStageBody -> JobInfo            (409 if that stage is already running)
   POST   /api/projects/:slug/jobs/:jobId/cancel        -> JobInfo
   PUT    /api/projects/:slug/edit SaveEditBody         -> SaveEditResponse | 409 SaveEditConflict
+  POST   /api/projects/:slug/style SetStyleBody        -> SaveEditResponse     (sets edit.style and re-applies it to the cuts)
   GET    /api/projects/:slug/events                    -> text/event-stream of ServerEvent
   GET    /media/:slug/*                                -> file from the project folder (Range requests supported)
 */

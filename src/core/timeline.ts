@@ -1,6 +1,7 @@
 // Turns the word-level edit (edit.json) into frame-snapped keep segments: the derived timeline
 // the preview, the renderer and the UI all play from. Pure functions, no I/O.
 import type { Clip, Config, Edit, PlacedOverlay, Segment, TakeOption, Timeline, Transcript, Word } from "./schema.ts";
+import { resolveStyle } from "./style.ts";
 
 type Range = { start: number; end: number };
 const EPS = 1e-6;
@@ -127,7 +128,8 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
   const fps = config.output.fps;
   const pre = config.edit.preMs / 1000;
   const post = config.edit.postMs / 1000;
-  const maxPause = config.edit.maxPauseMs / 1000;
+  const style = resolveStyle(config, edit);
+  const maxPause = style.maxPauseMs / 1000;
   const pausePre = Math.max(pre, maxPause / 2);
   const pausePost = Math.max(post, maxPause / 2);
 
@@ -216,11 +218,25 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
 
   // Punch-ins: every other segment of a run from one clip is zoomed, so each jump cut changes the framing.
   // A new clip (another take or angle) starts unzoomed.
-  if (edit.punchIn && config.edit.punchInZoom > 1) {
+  if (style.jumpCuts === "punch-in" && config.edit.punchInZoom > 1) {
     let zoomed = false;
     segments.forEach((s, i) => {
       zoomed = i > 0 && segments[i - 1]!.clipId === s.clipId ? !zoomed : false;
       if (zoomed) s.zoom = config.edit.punchInZoom;
+    });
+  }
+  // Soft jump cuts: a short dissolve centred on each join inside one take (not across clips). Both sides
+  // lend half of it from material just past the cut, so they must exist in the clip and each segment must
+  // keep at least as many frames of its own.
+  if (style.jumpCuts === "soft") {
+    const n = style.softFrames, half = Math.ceil(n / 2);
+    segments.forEach((s, i) => {
+      const a = segments[i - 1];
+      if (!a || a.clipId !== s.clipId) return;
+      const clipFrames = Math.floor((clips.find((c) => c.id === s.clipId)?.duration ?? 0) * fps + EPS);
+      const aEnd = Math.round(a.end * fps), bStart = Math.round(s.start * fps);
+      const roomA = aEnd + half <= clipFrames, roomB = bStart - half >= 0;
+      if (roomA && roomB && a.frames >= 2 * n && s.frames >= 2 * n) s.softIn = n;
     });
   }
 

@@ -1,7 +1,7 @@
 // The UI's view of the server: one interface, two implementations (HTTP here, in-memory in dev/mock.ts).
 import type {
   Asset, Config, CreateProjectBody, Edit, FileListing, Health, JobInfo, PatchAssetBody, PatchProjectBody, Project,
-  ProjectBundle, SaveEditResponse, ScriptEntry, ServerEvent, StageName, StageOptions,
+  ProjectBundle, SaveEditResponse, ScriptEntry, ServerEvent, SetStyleBody, StageName, StageOptions,
 } from "./types.ts";
 
 export type StageRunOptions = StageOptions[keyof StageOptions];
@@ -26,6 +26,8 @@ export interface ApiClient {
   cancelJob(slug: string, jobId: string): Promise<JobInfo>;
   /** Throws EditConflictError (409) when the stored version moved on. */
   saveEdit(slug: string, edit: Edit): Promise<SaveEditResponse>;
+  /** Set this video's edit style overrides; the server re-applies the style to the cuts. */
+  setStyle(slug: string, style: SetStyleBody["style"]): Promise<SaveEditResponse>;
   /** Live events for one project. Returns an unsubscribe function. */
   subscribe(slug: string, onEvent: (e: ServerEvent) => void, onState?: (s: ConnectionState) => void): () => void;
   /** URL for a file inside the project folder (path relative to it, e.g. assets/a1.png or proxy/c1.mp4). */
@@ -110,6 +112,7 @@ export function createHttpClient(): ApiClient {
     runStage: (slug, stage, options) => request("POST", `${P(slug)}/stages/${stage}`, options === undefined ? {} : { options }),
     cancelJob: (slug, jobId) => request("POST", `${P(slug)}/jobs/${enc(jobId)}/cancel`, {}),
     saveEdit: (slug, edit) => request("PUT", `${P(slug)}/edit`, { edit }),
+    setStyle: (slug, style) => request("POST", `${P(slug)}/style`, { style }),
     subscribe(slug, onEvent, onState) {
       // EventSource gives up for good when a (re)connect gets a non-200 answer, which is exactly what
       // the dev proxy returns (502) while the API server restarts. So reconnect ourselves with

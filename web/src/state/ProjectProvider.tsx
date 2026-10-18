@@ -1,7 +1,7 @@
 // Loads a project, keeps it live over SSE, and saves the edit (debounced, versioned).
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { EditConflictError, type StageRunOptions } from "../api.ts";
-import type { Edit, PatchProjectBody, StageName } from "../types.ts";
+import type { Edit, PatchProjectBody, SetStyleBody, StageName } from "../types.ts";
 import { useApp } from "./app.tsx";
 import { initialProjectState, isDirty, projectReducer, type ProjectAction, type ProjectState, type Selection } from "./projectStore.ts";
 import { fillerWordIds, indexWords, readingOrder, wordStatuses, type WordIndex, type WordStatus } from "../lib/words.ts";
@@ -25,6 +25,7 @@ type ProjectApi = {
   runStage: (stage: StageName, options?: StageRunOptions) => Promise<void>;
   cancelJob: (jobId: string) => Promise<void>;
   patchProject: (body: PatchProjectBody) => Promise<void>;
+  setStyle: (style: SetStyleBody["style"]) => Promise<void>;
   notify: (text: string, tone?: "info" | "warn" | "error") => void;
 };
 
@@ -165,6 +166,16 @@ export function ProjectProvider({ slug, children }: { slug: string; children: Re
       patchProject: async (body) => {
         try {
           dispatch({ type: "project", project: await client.patchProject(slug, body) });
+        } catch (e) {
+          notify(message(e), "error");
+        }
+      },
+      // the server re-applies the style to the cuts: save pending edits first, then load its copy
+      setStyle: async (style) => {
+        try {
+          await save();
+          await client.setStyle(slug, style);
+          await refresh();
         } catch (e) {
           notify(message(e), "error");
         }

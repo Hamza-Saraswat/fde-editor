@@ -17,7 +17,7 @@ const nowIso = () => new Date().toISOString();
 
 const CONFIG: Config = {
   output: { width: 2560, height: 1440, fps: 30 },
-  edit: { preMs: 80, postMs: 120, maxPauseMs: 400, fadeMs: 30, fillerGapMs: 250, punchInZoom: 1.1 },
+  edit: { preMs: 80, postMs: 120, maxPauseMs: 500, fadeMs: 30, fillerGapMs: 250, punchInZoom: 1.1, style: { fillers: "natural", fillerMinMs: 400, minSegmentMs: 1200, jumpCuts: "soft", softFrames: 4 } },
   transcription: { engine: "local", localEngine: "parakeet", localModel: "medium.en" },
   claude: { model: "opus", maxTurns: 40 },
   loudness: { I: -14, TP: -1.5, LRA: 11 },
@@ -475,6 +475,15 @@ export function createMockClient(): ApiClient {
       b.edit = { ...clone(edit), version: edit.version + 1 };
       b.timeline = timelineFor(b);
       markStale(slug, before, b.edit);
+      setTimeout(() => emit(slug, { type: "bundle-changed" }), 40);
+      return { edit: clone(b.edit), timeline: clone(b.timeline!) };
+    },
+    async setStyle(slug, style) {
+      await wait(160);
+      const b = get(slug);
+      if (!b.edit || !b.transcript) throw new ApiError(400, "No edit yet.");
+      b.edit = { ...clone(b.edit), style: { ...b.edit.style, ...style }, version: b.edit.version + 1 };
+      b.timeline = timelineFor(b);
       setTimeout(() => emit(slug, { type: "bundle-changed" }), 40);
       return { edit: clone(b.edit), timeline: clone(b.timeline!) };
     },

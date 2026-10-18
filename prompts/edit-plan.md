@@ -54,12 +54,27 @@ Decide on every aligner ad-lib, plus any other off-script speech you notice.
   off camera, counting in, and anything that repeats what a kept take already says.
 - `why` is shown to Hamza; keep it short and concrete.
 
+## Edit style
+
+`style` in the input says how hard this video is cut. In a one-camera video every cut is a visible jump,
+so the goal is a cut that sounds and looks natural, not one with every filler removed.
+
+- `fillers: natural` (the default): keep the short "uh", "um" and "you know" of normal fluent speech.
+  Cut a filler only when it stalls the sentence: a long drawn-out "uhhh" (about `fillerMinMs` or longer),
+  a cluster ("um, uh, so"), or one where he lost his thread and paused.
+- `fillers: all`: cut every filler. `fillers: keep`: cut none.
+- Whatever the style: always clean stutters, stumbles, false starts and accidental repeats. Those are
+  what make an edit sound broken.
+- Cut at natural pauses. One cut that removes a whole false start at a breath is better than several
+  surgical cuts inside a fluent sentence, and never leave a sliver of speech (under `minSegmentMs`)
+  between two cuts.
+
 ## Word cuts
 
 Inside kept takes and kept ad-libs, cut small things with `wordCuts` (a word range + reason):
 
 - `filler`: um, uh, er; "like" and "you know" ONLY when used as fillers, never when they carry meaning
-  ("tools like Cursor" stays).
+  ("tools like Cursor" stays). Follow the edit style above.
 - `stumble`: a mangled or half-said word that he then says correctly ("the agen- agentic").
 - `false-start`: a phrase he abandons and restarts mid-sentence ("So the — so the first type…").
   Cut the abandoned part and keep the restart.
@@ -67,8 +82,8 @@ Inside kept takes and kept ad-libs, cut small things with `wordCuts` (a word ran
   emphasis ("Same title. Same title.").
 
 Keep cuts tight: only the words that must go. Do not cut words the sentence needs to make sense.
-Filler `token`s you do not cut yourself are cut automatically, so you only need `fillerGaps` entries
-for them if one should stay.
+Filler `token`s you do not decide are handled by the edit style automatically (with `natural`, only the
+long ones are cut), so you only need to cut the ones that stall the sentence.
 
 ## Filler gaps
 

@@ -7,7 +7,8 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { REPO_ROOT, projectPaths } from "../core/paths.ts";
-import { EditSchema, StageName, TranscriptSchema, type Project } from "../core/schema.ts";
+import { EditSchema, EditStyleSchema, StageName, TranscriptSchema, type Project } from "../core/schema.ts";
+import { applyStyle, resolveStyle } from "../core/style.ts";
 import { listProjects, loadProject, readJsonIfExists, setStage, writeJson } from "../core/store.ts";
 import { buildTimeline } from "../core/timeline.ts";
 import { runStage } from "../pipeline/index.ts";
@@ -299,6 +300,31 @@ export function createApp(deps: AppDeps = {}): ServerApp {
       const next = { ...body.edit, version: (stored?.version ?? body.edit.version) + 1 };
       const timeline = buildTimeline(next, transcript, project.clips, await pipeline.loadConfig());
       const edit = await writeJson(p.edit, EditSchema, next);
+      changed(slug);
+      schedulePreview(slug);
+      return c.json<SaveEditResponse>({ edit, timeline });
+    });
+    editLocks.set(slug, result.catch(() => undefined));
+    return result;
+  });
+
+  // Edit style: merge this video's overrides into edit.style and re-apply it (filler cuts on/off by
+  // length, sliver segments dropped). A new version, so open review screens reload it.
+  app.post("/api/projects/:slug/style", async (c) => {
+    const slug = c.req.param("slug");
+    const project = await requireProject(slug);
+    const body = parseBody(z.object({ style: EditStyleSchema.partial() }), await jsonBody(c));
+    const prev = editLocks.get(slug) ?? Promise.resolve();
+    const result = prev.then(async (): Promise<Response> => {
+      const p = projectPaths(slug);
+      const stored = await readJsonIfExists(p.edit, EditSchema);
+      const transcript = await readJsonIfExists(p.transcript, TranscriptSchema);
+      if (!stored || !transcript) throw bad("No edit yet — run Plan edit first");
+      const config = await pipeline.loadConfig();
+      const withStyle = { ...stored, style: { ...stored.style, ...body.style } };
+      const next = { ...applyStyle(withStyle, resolveStyle(config, withStyle)), version: stored.version + 1 };
+      const edit = await writeJson(p.edit, EditSchema, next);
+      const timeline = buildTimeline(edit, transcript, project.clips, config);
       changed(slug);
       schedulePreview(slug);
       return c.json<SaveEditResponse>({ edit, timeline });

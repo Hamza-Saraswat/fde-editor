@@ -6,7 +6,7 @@ import { ConfigSchema, type Clip, type Timeline } from "../src/core/schema.ts";
 import { probeClip } from "../src/media/probe.ts";
 import { loudnormFilter, parseLoudnormJson } from "../src/media/loudness.ts";
 import {
-  profileSignature, punchInCrop, resolveProfile, sampleRange, segmentKey, videoSegmentArgs, zoomSignature,
+  planVideoPieces, profileSignature, punchInCrop, resolveProfile, sampleRange, segmentKey, videoSegmentArgs, zoomSignature,
 } from "../src/media/segments.ts";
 import {
   concatList, finalBitrateMbps, overlayFiltergraph, sideAudioChain, sideVideoChain,
@@ -91,6 +91,21 @@ describe("render arg builders", () => {
     expect(punchInCrop(1.2, "right")).toContain("x=(iw-ow)*0.7");
     expect(zoomSignature({}, "left")).toBe("");
     expect(zoomSignature({ zoom: 1.1 }, "left")).toBe(":zoom1.1@left");
+  });
+
+  it("soft joins become centred dissolves without changing the frame total", () => {
+    const tl = makeTimeline([[0.5, 1.5], [2, 3.2], [4, 5]]);
+    tl.segments[1]!.softIn = 4;
+    const pieces = planVideoPieces(tl);
+    expect(pieces.map((p) => p.kind)).toEqual(["seg", "dissolve", "seg", "seg"]);
+    const total = (ps: typeof pieces) => ps.reduce((n, p) => n + p.frames, 0);
+    expect(total(pieces)).toBe(tl.segments.reduce((n, s) => n + s.frames, 0));
+    // A = frames 15..45 ends 2 early; the dissolve blends A's frames 43..47 with B's 58..62; B starts 2 late
+    expect(pieces[0]).toMatchObject({ f0: 15, frames: 28 });
+    expect(pieces[1]).toMatchObject({ kind: "dissolve", aF0: 43, bF0: 58, frames: 4 });
+    expect(pieces[2]).toMatchObject({ f0: 62, frames: 34 });
+    // no soft join, no dissolve
+    expect(planVideoPieces(makeTimeline([[0.5, 1.5], [2, 3.2]])).every((p) => p.kind === "seg")).toBe(true);
   });
 
   it("segments map to sample-exact audio ranges", () => {
@@ -197,6 +212,17 @@ describe("segment cache, preview and final (synthetic media)", () => {
     console.log(`buildPreview after one toggle: ${t.ms} ms`);
     expect(t.encoded).toBe(1);
     expect(countFrames(paths.preview)).toBe(totalFrames + 15);
+  });
+
+  it("buildPreview with soft joins: dissolves keep the preview frame-exact", async () => {
+    const soft = makeTimeline([[0.5, 1.5], [2, 3.2], [4, 5], [6.1, 7.5]]);
+    soft.segments.slice(1).forEach((s) => { s.softIn = 4; });
+    const frames = soft.segments.reduce((n, s) => n + s.frames, 0);
+    const res = await render.buildPreview("r1", soft, { clips: [clip], config });
+    expect(res.encoded).toBe(7); // 4 trimmed segments + 3 dissolves
+    expect(countFrames(paths.preview)).toBe(frames);
+    const aDur = Number(probeVal(paths.preview, "stream=duration", "a:0"));
+    expect(Math.abs(aDur - frames / FPS)).toBeLessThan(0.001);
   });
 
   it("cancels cleanly: rejects and leaves no .part files behind", async () => {

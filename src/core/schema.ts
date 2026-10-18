@@ -17,6 +17,7 @@ export const ConfigSchema = z.object({
     fadeMs: z.number().default(30), // length of the audio crossfade centred on every cut
     fillerGapMs: z.number().default(250), // a voiced gap between words longer than this is a filler candidate
     punchInZoom: z.number().min(1).max(1.5).default(1.1), // how far a punch-in zooms (when the edit turns them on)
+    style: z.lazy(() => EditStyleSchema).prefault({}), // channel defaults; each video can override them (edit.style)
   }).prefault({}),
   transcription: z.object({
     engine: z.enum(["local", "openai"]).default("local"),
@@ -239,6 +240,8 @@ export const CutSchema = z.object({
   by: z.enum(["auto", "claude", "user"]),
   enabled: z.boolean(),
   note: z.string().optional(),
+  pinned: z.boolean().optional(), // the user turned it on or off by hand: the edit style never overrides it
+  wanted: z.boolean().optional(), // a filler cut's planner decision, before the edit style filtered it
 });
 export type Cut = z.infer<typeof CutSchema>;
 
@@ -284,10 +287,26 @@ export const EditSchema = z.object({
   chapters: z.array(z.object({ title: z.string(), anchorWordId: z.string() })),
   intro: z.boolean().default(true),
   outro: z.boolean().default(true),
-  // Zoom in on every other section of a continuous take, so a jump cut reads as a camera change.
-  punchIn: z.boolean().optional(),
+  punchIn: z.boolean().optional(), // legacy switch, read as style.jumpCuts = "punch-in"
+  style: z.lazy(() => EditStyleSchema.partial()).optional(), // this video's overrides of the channel style
 });
 export type Edit = z.infer<typeof EditSchema>;
+
+/**
+ * How hard the edit cuts. Fillers: "natural" cuts only stalls (≥ fillerMinMs) and keeps the short
+ * "uh"s of normal speech, "all" cuts every filler, "keep" none. Stutters, restarts and false starts are
+ * always cut. minSegmentMs drops a filler cut that would leave a sliver of video between two jumps.
+ * jumpCuts: "soft" dissolves softFrames across a cut inside one take, "punch-in" alternates a zoom.
+ */
+export const EditStyleSchema = z.object({
+  fillers: z.enum(["natural", "all", "keep"]).default("natural"),
+  fillerMinMs: z.number().min(0).default(400),
+  maxPauseMs: z.number().min(100).max(3000).optional(), // defaults to edit.maxPauseMs in the config
+  minSegmentMs: z.number().min(0).default(1200),
+  jumpCuts: z.enum(["soft", "punch-in", "none"]).default("soft"),
+  softFrames: z.number().int().min(2).max(12).default(4),
+});
+export type EditStyle = z.infer<typeof EditStyleSchema>;
 
 // ---------- derived timeline (never stored) ----------
 
@@ -298,6 +317,7 @@ export type Segment = {
   frames: number;
   outStart: number; // where it lands in the output
   zoom?: number; // punch-in scale (absent = 1, no zoom)
+  softIn?: number; // frames of dissolve from the previous segment, centred on the join (soft jump cut)
 };
 
 export type PlacedOverlay = { overlayId: string; cueId: string; start: number; end: number }; // output seconds

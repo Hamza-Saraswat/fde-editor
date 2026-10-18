@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { planToEdit } from "../core/compiler.ts";
+import { applyStyle, resolveStyle, type Style } from "../core/style.ts";
 import { PROMPTS_DIR, REPO_ROOT, projectPaths } from "../core/paths.ts";
 import {
   CandidatesSchema, EditPlanSchema, EditSchema, ScriptDocSchema, TranscriptSchema,
@@ -49,7 +50,7 @@ export async function preparePlan(slug: string): Promise<PreparedPlan> {
   ]);
   const inputFile = join(paths.runsDir, "plan-input.json");
   await mkdir(paths.runsDir, { recursive: true });
-  await writeFile(inputFile, serialize(buildPlanInput({ project, script, transcript, candidates, config })));
+  await writeFile(inputFile, serialize(buildPlanInput({ project, script, transcript, candidates, config, style: resolveStyle(config, previous) })));
   const prompt = [
     `Plan the edit for project ${slug}.`,
     `Read ${inputFile} completely. It is long: keep reading with offset/limit until you have seen every line.`,
@@ -70,7 +71,9 @@ export async function applyPlan(prep: PreparedPlan, structured: unknown): Promis
   const { script, transcript, candidates, project, previous } = prep.ctx;
   const plan = await writeJson(paths.plan, EditPlanSchema, parsed.data);
   const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous: previous ?? undefined });
-  const edit = await writeJson(paths.edit, EditSchema, compiled.edit);
+  // the edit style decides which filler cuts stay on (natural: only stalls) and drops sliver segments
+  const styled = applyStyle(compiled.edit, resolveStyle(prep.ctx.config, compiled.edit));
+  const edit = await writeJson(paths.edit, EditSchema, styled);
   return { plan, edit, warnings: [...prep.warnings, ...compiled.warnings] };
 }
 
@@ -109,11 +112,11 @@ export async function planEdit(slug: string, opts: PlanEditOptions = {}): Promis
 
 // ---------- the compact input file ----------
 
-type PlanInputCtx = { project: Project; script: ScriptDoc; transcript: Transcript; candidates: Candidates; config: Config };
+type PlanInputCtx = { project: Project; script: ScriptDoc; transcript: Transcript; candidates: Candidates; config: Config; style?: Style };
 
 const t2 = (x: number) => x.toFixed(2);
 
-export function buildPlanInput({ project, script, transcript, candidates, config }: PlanInputCtx): Record<string, unknown> {
+export function buildPlanInput({ project, script, transcript, candidates, config, style = resolveStyle(config) }: PlanInputCtx): Record<string, unknown> {
   const words = new Map(transcript.words.map((w) => [w.id, w]));
   const textOf = (startId: string, endId: string, max = 240) => {
     const a = transcript.words.findIndex((w) => w.id === startId);
@@ -151,6 +154,7 @@ export function buildPlanInput({ project, script, transcript, candidates, config
   return {
     project: project.slug,
     title: script.title,
+    style: { fillers: style.fillers, fillerMinMs: style.fillerMinMs, minSegmentMs: style.minSegmentMs },
     speakerSide: project.speakerSide,
     graphicsSide: project.speakerSide === "center" ? "either (choose per cue)" : project.speakerSide === "left" ? "right" : "left",
     formats: {

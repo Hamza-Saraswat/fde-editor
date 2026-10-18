@@ -67,26 +67,86 @@ export function punchInCrop(zoom: number, framing: SpeakerSide): string {
 export const zoomSignature = (seg: Pick<Segment, "zoom">, framing: SpeakerSide) =>
   seg.zoom && seg.zoom > 1 ? `:zoom${seg.zoom}@${framing}` : "";
 
-/** Pure: ffmpeg args for one frame-exact, video-only segment (same recipe as the spike). */
-export function videoSegmentArgs(
-  src: string, seg: Pick<Segment, "start" | "frames" | "zoom">, profile: EncodeProfile, out: string,
-  o: { framing?: SpeakerSide; crop?: Clip["crop"] } = {},
-): string[] {
-  const { width: W, height: H, fps } = profile;
-  const zoomed = Boolean(seg.zoom && seg.zoom > 1);
-  const vf = [
+type FilterOpts = { framing?: SpeakerSide; crop?: Clip["crop"] };
+
+/** The picture chain every encode of a clip runs: letterbox crop, punch-in, fit to the profile size. */
+function pictureFilter(profile: EncodeProfile, zoom: number | undefined, o: FilterOpts): string[] {
+  const { width: W, height: H } = profile;
+  const zoomed = Boolean(zoom && zoom > 1);
+  return [
     ...(o.crop ? [cropFilter({ crop: o.crop }).slice(0, -1)] : []),
-    ...(zoomed ? [punchInCrop(seg.zoom!, o.framing ?? "center")] : []),
+    ...(zoomed ? [punchInCrop(zoom!, o.framing ?? "center")] : []),
     `scale=${W}:${H}:force_original_aspect_ratio=decrease:force_divisible_by=2${zoomed ? ":flags=lanczos" : ""}`,
     `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`,
     "setsar=1",
     "format=yuv420p",
+  ];
+}
+
+/** Pure: ffmpeg args for one frame-exact, video-only segment (same recipe as the spike). */
+export function videoSegmentArgs(
+  src: string, seg: Pick<Segment, "start" | "frames" | "zoom">, profile: EncodeProfile, out: string,
+  o: FilterOpts = {},
+): string[] {
+  const { fps } = profile;
+  const vf = [
+    ...pictureFilter(profile, seg.zoom, o),
     "tpad=stop=-1:stop_mode=clone", // a segment that runs into the clip's end still gets exactly N frames
   ].join(",");
   return [
     "-ss", (startFrame(seg, fps) / fps).toFixed(6), "-i", src,
     "-an", "-sn", "-dn", "-frames:v", String(seg.frames),
     "-vf", vf, "-r", String(fps), "-fps_mode", "cfr",
+    ...profile.codecArgs, "-video_track_timescale", "15360",
+    "-f", "mp4", out,
+  ];
+}
+
+// ---------- soft jump cuts ----------
+
+/** One piece of the concatenated video: a stretch of a clip, or a dissolve across a join inside it. */
+export type VideoPiece =
+  | { kind: "seg"; clipId: string; f0: number; frames: number; zoom?: number }
+  | { kind: "dissolve"; clipId: string; aF0: number; bF0: number; frames: number };
+
+/**
+ * Pure: the timeline as concat pieces. A join with `softIn = n` trims ⌊n/2⌋ frames off the end of the
+ * segment before it and ⌈n/2⌉ off the start of the one after, and puts an n-frame dissolve between them
+ * that blends the first segment running on past the cut with the second running in from before it. The
+ * dissolve is centred on the cut and the frame total is unchanged, so the audio stays in sync.
+ */
+export function planVideoPieces(timeline: Pick<Timeline, "fps" | "segments">): VideoPiece[] {
+  const fps = timeline.fps;
+  const out: VideoPiece[] = [];
+  timeline.segments.forEach((s, i) => {
+    let f0 = startFrame(s, fps);
+    let frames = s.frames;
+    const n = s.softIn ?? 0;
+    const prev = out.at(-1);
+    if (n && prev?.kind === "seg" && i > 0) {
+      const hA = Math.floor(n / 2), hB = n - hA;
+      const a = timeline.segments[i - 1]!;
+      prev.frames -= hA;
+      out.push({ kind: "dissolve", clipId: s.clipId, aF0: startFrame(a, fps) + a.frames - hA, bF0: f0 - hA, frames: n });
+      f0 += hB;
+      frames -= hB;
+    }
+    out.push({ kind: "seg", clipId: s.clipId, f0, frames, ...(s.zoom ? { zoom: s.zoom } : {}) });
+  });
+  return out;
+}
+
+/** Pure: ffmpeg args for an n-frame dissolve from frame aF0 of a clip into frame bF0 of the same clip. */
+export function dissolveArgs(src: string, piece: Extract<VideoPiece, { kind: "dissolve" }>, profile: EncodeProfile, out: string, o: FilterOpts = {}): string[] {
+  const { fps } = profile;
+  const n = piece.frames;
+  const chain = [...pictureFilter(profile, undefined, o), "tpad=stop=-1:stop_mode=clone", `trim=end_frame=${n}`, "setpts=PTS-STARTPTS"].join(",");
+  return [
+    "-ss", (piece.aF0 / fps).toFixed(6), "-i", src,
+    "-ss", (piece.bF0 / fps).toFixed(6), "-i", src,
+    "-filter_complex", `[0:v]${chain}[a];[1:v]${chain}[b];[a][b]xfade=transition=fade:duration=${(n / fps).toFixed(6)}:offset=0,format=yuv420p[v]`,
+    "-map", "[v]", "-an", "-sn", "-dn", "-frames:v", String(n),
+    "-r", String(fps), "-fps_mode", "cfr",
     ...profile.codecArgs, "-video_track_timescale", "15360",
     "-f", "mp4", out,
   ];
@@ -200,23 +260,26 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
     }
   }
 
-  const files: SegmentFiles[] = timeline.segments.map((seg) => {
-    const clip = byId.get(seg.clipId)!;
+  const pieces = planVideoPieces(timeline);
+  const files: SegmentFiles[] = pieces.map((piece) => {
+    const clip = byId.get(piece.clipId)!;
     const stat = stats.get(clip.id)!;
     const cropSig = clip.crop ? `:crop${clip.crop.w}x${clip.crop.h}+${clip.crop.x}+${clip.crop.y}` : "";
-    const key = segmentKey(clip, seg, sig + zoomSignature(seg, framing) + cropSig, fps, stat);
+    const key = piece.kind === "seg"
+      ? segmentKey(clip, { start: piece.f0 / fps, frames: piece.frames }, sig + zoomSignature(piece, framing) + cropSig, fps, stat)
+      : segmentKey(clip, { start: piece.aF0 / fps, frames: piece.frames }, `${sig}${cropSig}:dissolve-into${piece.bF0}`, fps, stat);
     return { key, video: join(dirs.video, `${key}.mp4`) };
   });
 
   // unique missing work, in timeline order
-  type Job = { seg: Segment; clip: Clip; f: SegmentFiles };
+  type Job = { piece: VideoPiece; clip: Clip; f: SegmentFiles };
   const jobs: Job[] = [];
   const seen = new Set<string>();
-  timeline.segments.forEach((seg, i) => {
+  pieces.forEach((piece, i) => {
     const f = files[i]!;
     if (seen.has(f.key)) return;
     seen.add(f.key);
-    if (!existsSync(f.video)) jobs.push({ seg, clip: byId.get(seg.clipId)!, f });
+    if (!existsSync(f.video)) jobs.push({ piece, clip: byId.get(piece.clipId)!, f });
   });
 
   const total = jobs.length;
@@ -225,8 +288,12 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
   opts.onProgress?.(total ? 0 : 1, total ? `Encoding ${total} ${label} segments` : `All ${files.length} ${label} segments cached`);
 
   await pool(jobs, opts.concurrency ?? 2, async (job) => {
-    const { seg, clip, f } = job;
-    await atomicOutput(f.video, (part) => ffmpeg(videoSegmentArgs(clip.path, seg, profile, part, { framing, crop: clip.crop }), { signal: opts.signal, log }));
+    const { piece, clip, f } = job;
+    const o = { framing, crop: clip.crop };
+    const args = (part: string) => piece.kind === "seg"
+      ? videoSegmentArgs(clip.path, { start: piece.f0 / fps, frames: piece.frames, zoom: piece.zoom }, profile, part, o)
+      : dissolveArgs(clip.path, piece, profile, part, o);
+    await atomicOutput(f.video, (part) => ffmpeg(args(part), { signal: opts.signal, log }));
     done++;
     opts.onProgress?.(done / total, `Encoded ${done}/${total} ${label} segments`);
   }, opts.signal);

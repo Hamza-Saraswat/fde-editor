@@ -365,6 +365,8 @@ export function planToEdit(plan: EditPlan, ctx: CompileContext): CompileResult {
     chapters,
     intro: previous?.intro ?? true,
     outro: previous?.outro ?? true,
+    ...(previous?.style ? { style: previous.style } : {}),
+    ...(previous?.punchIn !== undefined ? { punchIn: previous.punchIn } : {}),
   };
   return { edit, warnings };
 }
