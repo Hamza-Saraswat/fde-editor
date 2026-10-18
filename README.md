@@ -67,9 +67,39 @@ Set where you sit in frame per video: **left third**, **right third**, or **cent
 - **On a third:** graphics go on the open side.
 - **Centered:** each graphic goes left or right. Claude alternates sides, and you can flip any graphic.
   The `split` layout puts a comparison on both sides of you.
-- **Punch-ins** (off by default; the switch is in the review screen's Overview panel): every other
-  section of a continuous take zooms in about 10% toward you, so jump cuts read as camera changes.
-  Use them for camera footage. On a screen recording they crop the screen.
+
+## Edit style
+
+How hard a video is cut. The channel defaults are in `fde-editor.config.json` (`edit.style` and
+`edit.maxPauseMs`). Each video can override them in the review screen's Overview panel, and a change
+applies straight away, with no new Claude plan.
+
+| Setting | Default | What it does |
+|---|---|---|
+| Ums and uhs | Natural | Keeps the short "uh" of fluent speech and cuts only stalls. Cut all and Keep all are the alternatives. |
+| Cut stalls longer than | 400 ms | The length at which a filler counts as a stall. |
+| Longest pause kept | 500 ms | Pauses longer than this are shortened to it. |
+| Avoid slivers shorter than | 1.2 s | Drops a filler cut that would leave a scrap of video between two jumps. |
+| Jump cuts | Soft | A 4-frame dissolve across each cut inside one take. Punch-in zooms in about 10% on every other section, for camera footage only, since it crops a screen recording. Hard is a plain cut. |
+
+Stutters, restarts and false starts are always cut. A cut you switch on or off yourself is never changed
+by the style. The Overview also shows cuts per minute and pieces under 1 s, so you can keep videos
+consistent.
+
+## Picture fixes
+
+- **Letterboxed recordings** are cropped automatically when you add them. CapCut's teleprompter, for
+  example, saves a 16:9 shot inside a 9:16 frame.
+- **Mirror and Stabilize** are switches per recording, in the setup view and the Overview.
+  - Mirror un-flips a front camera.
+  - Stabilize removes camera shake such as table knocks. It uses OpenCV (`scripts/stabilize.py`) and
+    holds the camera still in the background. It adds about 1–2% of zoom to hide the edges, capped at
+    6%.
+  - Either switch builds one corrected copy of the recording that everything else reads from. It has
+    the same frames, timing and audio as the original. The preview then rebuilds, with no
+    re-transcribing.
+- **Stabilize needs `python3` with `cv2`.** If that's missing, the editor runs the official
+  `opencv-python-headless` package through `uv`.
 
 ## Script format
 
