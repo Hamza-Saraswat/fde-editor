@@ -42,6 +42,7 @@ export const PatchProjectBodySchema = z.object({
 });
 
 export const AddClipsBodySchema = z.object({ paths: z.array(z.string().min(1)).min(1) });
+export const PatchClipBodySchema = z.object({ mirror: z.boolean().optional(), stabilize: z.boolean().optional() });
 
 export const PatchAssetBodySchema = z.object({
   cueId: z.string().min(1).nullable().optional(),
@@ -137,6 +138,25 @@ export async function addClips(slug: string, body: unknown, deps: Pick<PipelineD
 }
 
 /** Remove a clip from project.json and from the edit's clip order (bumping the edit version). */
+/** Picture fixes for one clip (mirror, stabilize). Returns whether anything changed. */
+export async function patchClip(slug: string, clipId: string, body: unknown): Promise<{ project: Project; changed: boolean }> {
+  const b = parseBody(PatchClipBodySchema, body);
+  let found = false, changed = false;
+  const project = await updateProject(slug, (p) => {
+    const clip = p.clips.find((c) => c.id === clipId);
+    if (!clip) return;
+    found = true;
+    for (const k of ["mirror", "stabilize"] as const) {
+      if (b[k] !== undefined && Boolean(clip[k]) !== b[k]) {
+        clip[k] = b[k];
+        changed = true;
+      }
+    }
+  });
+  if (!found) throw notFound(`No clip ${clipId} in this project`);
+  return { project, changed };
+}
+
 export async function removeClip(slug: string, clipId: string): Promise<{ project: Project; editChanged: boolean }> {
   let found = false;
   const project = await updateProject(slug, (p) => {

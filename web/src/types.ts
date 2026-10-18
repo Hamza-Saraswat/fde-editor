@@ -1,6 +1,6 @@
 // Contract types, re-exported for the UI. Types only: nothing here reaches the browser bundle.
 export type {
-  Health, ScriptEntry, FileEntry, FileListing, CreateProjectBody, PatchProjectBody, GraphicState, GraphicStatus,
+  Health, ScriptEntry, FileEntry, FileListing, CreateProjectBody, PatchProjectBody, PatchClipBody, GraphicState, GraphicStatus,
   Outputs, ProjectBundle, StageOptions, RunStageBody, JobInfo, SaveEditBody, SaveEditResponse, SaveEditConflict, SetStyleBody,
   PatchAssetBody, ServerEvent,
 } from "../../src/server/api.ts";

@@ -1,6 +1,6 @@
 // The UI's view of the server: one interface, two implementations (HTTP here, in-memory in dev/mock.ts).
 import type {
-  Asset, Config, CreateProjectBody, Edit, FileListing, Health, JobInfo, PatchAssetBody, PatchProjectBody, Project,
+  Asset, Config, CreateProjectBody, Edit, FileListing, Health, JobInfo, PatchAssetBody, PatchClipBody, PatchProjectBody, Project,
   ProjectBundle, SaveEditResponse, ScriptEntry, ServerEvent, SetStyleBody, StageName, StageOptions,
 } from "./types.ts";
 
@@ -19,6 +19,8 @@ export interface ApiClient {
   patchProject(slug: string, body: PatchProjectBody): Promise<Project>;
   addClips(slug: string, paths: string[]): Promise<Project>;
   removeClip(slug: string, clipId: string): Promise<Project>;
+  /** Picture fixes for one clip; the server rebuilds its master, proxy and the preview. */
+  patchClip(slug: string, clipId: string, body: PatchClipBody): Promise<Project>;
   uploadAsset(slug: string, file: File): Promise<Asset>;
   patchAsset(slug: string, assetId: string, body: PatchAssetBody): Promise<Asset>;
   deleteAsset(slug: string, assetId: string): Promise<Project>;
@@ -102,6 +104,7 @@ export function createHttpClient(): ApiClient {
     patchProject: (slug, body) => request("PATCH", P(slug), body),
     addClips: (slug, paths) => request("POST", `${P(slug)}/clips`, { paths }),
     removeClip: (slug, clipId) => request("DELETE", `${P(slug)}/clips/${enc(clipId)}`),
+    patchClip: (slug, clipId, body) => request("PATCH", `${P(slug)}/clips/${enc(clipId)}`, body),
     uploadAsset: (slug, file) => {
       const form = new FormData();
       form.append("file", file);

@@ -7,6 +7,7 @@ import { runningJob } from "../state/projectStore.ts";
 import { formatSeconds } from "../lib/timelineMath.ts";
 import { FileBrowser } from "./FileBrowser.tsx";
 import { Icon } from "./Icon.tsx";
+import { ClipFixes } from "./ClipFixes.tsx";
 
 export function SetupView() {
   const { client } = useApp();
@@ -91,6 +92,7 @@ export function SetupView() {
                       {c.hdr ? ", HDR" : ""}
                     </span>
                   </span>
+                  <ClipFixes clip={c} />
                   <button type="button" className="btn btn-sm btn-ghost btn-icon" aria-label={`Remove ${c.name}`} onClick={() => removeClip(c.id)}>
                     <Icon name="trash" size={14} />
                   </button>

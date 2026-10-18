@@ -58,6 +58,8 @@ export const ClipSchema = z.object({
   // The picture inside black bars, in source pixels: some recorders (CapCut's teleprompter) save a 16:9
   // shot letterboxed inside a 9:16 canvas. Every encode crops to it; width/height above are its size.
   crop: z.object({ x: z.number().int(), y: z.number().int(), w: z.number().int(), h: z.number().int() }).optional(),
+  mirror: z.boolean().optional(), // flip left-right (a front camera saved a mirror image)
+  stabilize: z.boolean().optional(), // remove camera shake (table knocks); builds a conformed master
 });
 export type Clip = z.infer<typeof ClipSchema>;
 
@@ -288,7 +290,7 @@ export const EditSchema = z.object({
   intro: z.boolean().default(true),
   outro: z.boolean().default(true),
   punchIn: z.boolean().optional(), // legacy switch, read as style.jumpCuts = "punch-in"
-  style: z.lazy(() => EditStyleSchema.partial()).optional(), // this video's overrides of the channel style
+  style: z.lazy(() => EditStyleOverridesSchema).optional(), // this video's overrides of the channel style
 });
 export type Edit = z.infer<typeof EditSchema>;
 
@@ -298,15 +300,27 @@ export type Edit = z.infer<typeof EditSchema>;
  * always cut. minSegmentMs drops a filler cut that would leave a sliver of video between two jumps.
  * jumpCuts: "soft" dissolves softFrames across a cut inside one take, "punch-in" alternates a zoom.
  */
+const STYLE = {
+  fillers: z.enum(["natural", "all", "keep"]),
+  fillerMinMs: z.number().min(0),
+  maxPauseMs: z.number().min(100).max(3000), // the channel default is edit.maxPauseMs in the config
+  minSegmentMs: z.number().min(0),
+  jumpCuts: z.enum(["soft", "punch-in", "none"]),
+  softFrames: z.number().int().min(2).max(12),
+};
 export const EditStyleSchema = z.object({
-  fillers: z.enum(["natural", "all", "keep"]).default("natural"),
-  fillerMinMs: z.number().min(0).default(400),
-  maxPauseMs: z.number().min(100).max(3000).optional(), // defaults to edit.maxPauseMs in the config
-  minSegmentMs: z.number().min(0).default(1200),
-  jumpCuts: z.enum(["soft", "punch-in", "none"]).default("soft"),
-  softFrames: z.number().int().min(2).max(12).default(4),
+  fillers: STYLE.fillers.default("natural"),
+  fillerMinMs: STYLE.fillerMinMs.default(400),
+  maxPauseMs: STYLE.maxPauseMs.optional(),
+  minSegmentMs: STYLE.minSegmentMs.default(1200),
+  jumpCuts: STYLE.jumpCuts.default("soft"),
+  softFrames: STYLE.softFrames.default(4),
 });
 export type EditStyle = z.infer<typeof EditStyleSchema>;
+/** A video's overrides: only what was changed for it, no defaults filled in (they come from the config). */
+export const EditStyleOverridesSchema = z.object(Object.fromEntries(Object.entries(STYLE).map(([k, v]) => [k, v.optional()])) as {
+  [K in keyof typeof STYLE]: z.ZodOptional<(typeof STYLE)[K]>;
+});
 
 // ---------- derived timeline (never stored) ----------
 

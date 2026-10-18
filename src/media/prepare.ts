@@ -9,7 +9,7 @@ import { mkdir, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { ffmpeg } from "../core/proc.ts";
 import { projectPaths } from "../core/paths.ts";
-import { loadConfig } from "../core/store.ts";
+import { loadConfig, loadProject } from "../core/store.ts";
 import type { Clip, Config } from "../core/schema.ts";
 
 /** fraction 0–1 plus a short human message; maps straight onto StageStatus.progress/message. */
@@ -105,10 +105,24 @@ export async function prepareClip(
     asrMp3: p.asrMp3(clip.id),
   };
   const wanted = opts.only ?? (["proxy", "wav", "asrWav", "asrMp3"] as PrepareTarget[]);
-  const todo = wanted.filter((t) => opts.force || !isFresh(files[t], clip.path));
+  // a clip with picture fixes gets its proxy from the conformed master (audio always from the original)
+  const { needsMaster, masterPath } = await import("./conform.ts");
+  const master = needsMaster(clip) ? masterPath(slug, clip, (await loadProject(slug)).speakerSide) : null;
+  const proxyFrom = master && existsSync(master) ? master : null;
+  const todo = wanted.filter((t) => opts.force || !isFresh(files[t], t === "proxy" && proxyFrom ? proxyFrom : clip.path));
   if (!todo.length) {
     opts.onProgress?.(1, `${clip.name}: media up to date`);
     return { ...files, made: [] };
+  }
+  let proxyMade = false;
+  if (proxyFrom && todo.includes("proxy")) {
+    await mkdir(dirname(files.proxy), { recursive: true });
+    await atomicOutput(files.proxy, (part) => ffmpeg(["-i", proxyFrom, ...prepareOutputArgs("proxy", { ...clip, crop: undefined }, fps, "0:a:0?", part)], {
+      signal: opts.signal, log: opts.log ?? join(p.runsDir, "prepare.log"),
+    }));
+    todo.splice(todo.indexOf("proxy"), 1);
+    proxyMade = true;
+    if (!todo.length) return { ...files, made: ["proxy"] };
   }
 
   const args = ["-progress", "pipe:1", "-i", clip.path];
@@ -134,5 +148,5 @@ export async function prepareClip(
     throw err;
   }
   opts.onProgress?.(1, `${clip.name}: media ready`);
-  return { ...files, made: todo };
+  return { ...files, made: proxyMade ? ["proxy", ...todo] : todo };
 }

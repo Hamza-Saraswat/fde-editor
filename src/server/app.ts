@@ -7,7 +7,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { REPO_ROOT, projectPaths } from "../core/paths.ts";
-import { EditSchema, EditStyleSchema, StageName, TranscriptSchema, type Project } from "../core/schema.ts";
+import { EditSchema, EditStyleOverridesSchema, StageName, TranscriptSchema, type Project } from "../core/schema.ts";
 import { applyStyle, resolveStyle } from "../core/style.ts";
 import { listProjects, loadProject, readJsonIfExists, setStage, writeJson } from "../core/store.ts";
 import { buildTimeline } from "../core/timeline.ts";
@@ -23,7 +23,7 @@ import { cached, claudeAuthStatus, health } from "./health.ts";
 import { JobConflictError, JobManager, type JobManagerOptions } from "./jobs.ts";
 import { safeResolve, sendFile } from "./media.ts";
 import {
-  SLUG_RE, addAsset, addClips, bad, createProject, deleteAsset, notFound, parseBody, patchAsset, patchProject,
+  SLUG_RE, addAsset, addClips, bad, createProject, deleteAsset, notFound, parseBody, patchAsset, patchClip, patchProject,
   probeImage, removeClip, type ProbeImage,
 } from "./projects.ts";
 
@@ -59,6 +59,7 @@ const STAGE_OPTIONS: Partial<Record<StageName, z.ZodType>> = {
     force: z.boolean().optional(),
   }),
   xclips: z.object({ count: z.number().int().min(1).max(3).optional() }),
+  import: z.object({ then: z.enum(["transcribe", "preview"]).optional() }),
   preview: z.object({ sweep: z.boolean().optional() }), // sweep: listen back and cut leftover ums
 };
 
@@ -218,6 +219,16 @@ export function createApp(deps: AppDeps = {}): ServerApp {
     return c.json<Project>(project);
   });
 
+  // Picture fixes: rebuild the clip's master and proxy, then the preview (no re-transcribe: no words change)
+  app.patch("/api/projects/:slug/clips/:clipId", async (c) => {
+    const slug = c.req.param("slug");
+    await requireProject(slug);
+    const { project, changed: fixed } = await patchClip(slug, c.req.param("clipId"), await jsonBody(c));
+    changed(slug);
+    if (fixed) jobs.restart(slug, "import", { then: "preview" }).catch((err: unknown) => console.error(`[server] could not start import for ${slug}:`, err));
+    return c.json<Project>(project);
+  });
+
   app.delete("/api/projects/:slug/clips/:clipId", async (c) => {
     const slug = c.req.param("slug");
     await requireProject(slug);
@@ -313,7 +324,10 @@ export function createApp(deps: AppDeps = {}): ServerApp {
   app.post("/api/projects/:slug/style", async (c) => {
     const slug = c.req.param("slug");
     const project = await requireProject(slug);
-    const body = parseBody(z.object({ style: EditStyleSchema.partial() }), await jsonBody(c));
+    // a null value puts that setting back to the channel default
+    const body = parseBody(z.object({ style: z.record(z.string(), z.unknown()) }), await jsonBody(c));
+    const cleared = Object.keys(body.style).filter((k) => body.style[k] === null);
+    const set = parseBody(EditStyleOverridesSchema, Object.fromEntries(Object.entries(body.style).filter(([, v]) => v !== null)));
     const prev = editLocks.get(slug) ?? Promise.resolve();
     const result = prev.then(async (): Promise<Response> => {
       const p = projectPaths(slug);
@@ -321,7 +335,9 @@ export function createApp(deps: AppDeps = {}): ServerApp {
       const transcript = await readJsonIfExists(p.transcript, TranscriptSchema);
       if (!stored || !transcript) throw bad("No edit yet — run Plan edit first");
       const config = await pipeline.loadConfig();
-      const withStyle = { ...stored, style: { ...stored.style, ...body.style } };
+      const merged: Record<string, unknown> = { ...stored.style, ...set };
+      for (const k of cleared) delete merged[k];
+      const withStyle = { ...stored, style: EditStyleOverridesSchema.parse(merged) };
       const next = { ...applyStyle(withStyle, resolveStyle(config, withStyle)), version: stored.version + 1 };
       const edit = await writeJson(p.edit, EditSchema, next);
       const timeline = buildTimeline(edit, transcript, project.clips, config);

@@ -6,6 +6,7 @@ import { useApp } from "../state/app.tsx";
 import { useProject } from "../state/ProjectProvider.tsx";
 import type { EditStyle } from "../types.ts";
 import { Segmented } from "./Segmented.tsx";
+import { ClipFixes } from "./ClipFixes.tsx";
 
 type Resolved = Required<Omit<EditStyle, "maxPauseMs">> & { maxPauseMs: number };
 
@@ -91,6 +92,17 @@ export function EditStylePanel() {
           />
         </div>
       </div>
+      <h3 className="mb-1 mt-4 text-[12px] font-semibold text-ink-2">Picture</h3>
+      <ul role="list" className="grid gap-1">
+        {(state.bundle?.project.clips ?? []).map((c) => (
+          <li key={c.id} className="flex items-center gap-2 px-2 py-1">
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink" title={c.name}>
+              {c.id} <span className="text-muted">{c.name}</span>
+            </span>
+            <ClipFixes clip={c} />
+          </li>
+        ))}
+      </ul>
       {tl && (
         <p className="meta mt-2 px-2 tc">
           {joins} cuts · {perMin.toFixed(1)} a minute · {lens.filter((l) => l < 1).length} pieces under 1 s

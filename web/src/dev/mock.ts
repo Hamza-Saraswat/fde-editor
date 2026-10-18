@@ -478,14 +478,25 @@ export function createMockClient(): ApiClient {
       setTimeout(() => emit(slug, { type: "bundle-changed" }), 40);
       return { edit: clone(b.edit), timeline: clone(b.timeline!) };
     },
+    async patchClip(slug, clipId, body) {
+      await wait(120);
+      const b = get(slug);
+      const clip = b.project.clips.find((c) => c.id === clipId);
+      if (!clip) throw new ApiError(404, `No clip ${clipId}`);
+      Object.assign(clip, body);
+      setTimeout(() => emit(slug, { type: "bundle-changed" }), 40);
+      return clone(b.project);
+    },
     async setStyle(slug, style) {
       await wait(160);
       const b = get(slug);
       if (!b.edit || !b.transcript) throw new ApiError(400, "No edit yet.");
-      b.edit = { ...clone(b.edit), style: { ...b.edit.style, ...style }, version: b.edit.version + 1 };
+      const merged: Record<string, unknown> = { ...b.edit.style, ...style };
+      for (const [k, v] of Object.entries(style)) if (v === null) delete merged[k];
+      b.edit = { ...clone(b.edit), style: merged as Edit["style"], version: b.edit.version + 1 };
       b.timeline = timelineFor(b);
       setTimeout(() => emit(slug, { type: "bundle-changed" }), 40);
-      return { edit: clone(b.edit), timeline: clone(b.timeline!) };
+      return { edit: clone(b.edit)!, timeline: clone(b.timeline!) };
     },
     subscribe(slug, onEvent, onState) {
       const set = listeners.get(slug) ?? new Set();

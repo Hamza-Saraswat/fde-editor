@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ConfigSchema, type Cut, type Edit } from "../src/core/schema.ts";
+import { ConfigSchema, EditSchema, type Cut, type Edit } from "../src/core/schema.ts";
 import { applyStyle, resolveStyle } from "../src/core/style.ts";
 
 const cut = (id: string, start: number, end: number, over: Partial<Cut> = {}): Cut =>
@@ -14,6 +14,15 @@ describe("resolveStyle", () => {
     expect(resolveStyle(config)).toMatchObject({ fillers: "natural", fillerMinMs: 400, minSegmentMs: 1200, jumpCuts: "soft", softFrames: 4, maxPauseMs: config.edit.maxPauseMs });
     expect(resolveStyle(config, editOf([], { style: { fillers: "all", maxPauseMs: 800 } }))).toMatchObject({ fillers: "all", maxPauseMs: 800, jumpCuts: "soft" });
     expect(resolveStyle(config, editOf([], { punchIn: true })).jumpCuts).toBe("punch-in"); // the old switch still works
+  });
+});
+
+describe("per-video style overrides", () => {
+  it("store only what was changed, so channel defaults still reach the video", () => {
+    const e = EditSchema.parse({ version: 1, clipOrder: [], cuts: [], takeGroups: [], overlays: [], chapters: [], style: { fillers: "all" } });
+    expect(e.style).toEqual({ fillers: "all" });
+    const later = ConfigSchema.parse({ edit: { style: { minSegmentMs: 2000 } } }); // the channel default changes
+    expect(resolveStyle(later, e)).toMatchObject({ fillers: "all", minSegmentMs: 2000 });
   });
 });
 

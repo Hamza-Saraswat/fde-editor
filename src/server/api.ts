@@ -26,6 +26,7 @@ export type CreateProjectBody = {
 };
 
 export type PatchProjectBody = Partial<Pick<Project, "title" | "speakerSide" | "nextVideoTitle">>;
+export type PatchClipBody = { mirror?: boolean; stabilize?: boolean };
 
 export type GraphicState = "none" | "queued" | "building" | "rendering" | "ready" | "error";
 export type GraphicStatus = {
@@ -68,6 +69,7 @@ export type StageOptions = {
   graphics?: { cueIds?: string[]; note?: string; force?: boolean };
   render?: Record<string, never>;
   xclips?: { count?: number };
+  import?: { then?: "transcribe" | "preview" }; // after a picture fix: rebuild the preview, don't re-transcribe
   preview?: { sweep?: boolean }; // listen to the built preview and cut any um/uh still audible
 };
 export type RunStageBody = { options?: StageOptions[keyof StageOptions] };
@@ -85,7 +87,8 @@ export type JobInfo = {
 export type SaveEditBody = { edit: Edit }; // edit.version must equal the stored version
 export type SaveEditResponse = { edit: Edit; timeline: Timeline };
 export type SaveEditConflict = { error: "conflict"; current: Edit };
-export type SetStyleBody = { style: Partial<EditStyle> }; // this video's overrides; the server re-applies the style
+// this video's overrides (null = back to the channel default); the server re-applies the style to the cuts
+export type SetStyleBody = { style: { [K in keyof EditStyle]?: EditStyle[K] | null } };
 
 export type PatchAssetBody = { cueId?: string | null; crop?: Rect | null; blur?: Rect[]; highlight?: Rect[] };
 
@@ -109,6 +112,7 @@ Routes
   GET    /api/projects/:slug                           -> ProjectBundle
   PATCH  /api/projects/:slug      PatchProjectBody     -> Project
   POST   /api/projects/:slug/clips   { paths: string[] } -> Project
+  PATCH  /api/projects/:slug/clips/:clipId PatchClipBody -> Project            (picture fixes; rebuilds master, proxy, preview)
   DELETE /api/projects/:slug/clips/:clipId             -> Project
   POST   /api/projects/:slug/assets  multipart "file"  -> Asset               (images: png/jpg/webp)
   PATCH  /api/projects/:slug/assets/:assetId PatchAssetBody -> Asset

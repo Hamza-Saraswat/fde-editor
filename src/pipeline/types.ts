@@ -10,6 +10,7 @@ import { planXClips } from "../claude/xclips.ts";
 import { buildGraphic, graphicStatuses } from "../graphics/index.ts";
 import { renderCaptionLayer } from "../graphics/captions.ts";
 import { prepareClip } from "../media/prepare.ts";
+import { ensureMaster } from "../media/conform.ts";
 import { probeClip } from "../media/probe.ts";
 import { buildPreview, renderFinal, renderXClip } from "../media/render.ts";
 import { transcribeProject } from "../transcribe/index.ts";
@@ -30,6 +31,7 @@ export type PipelineDeps = {
   loadConfig: typeof loadConfig;
   probeClip: typeof probeClip;
   prepareClip: typeof prepareClip;
+  ensureMaster: typeof ensureMaster;
   transcribeProject: typeof transcribeProject;
   alignScript: typeof alignScript;
   planEdit: typeof planEdit;
@@ -49,6 +51,7 @@ export const realDeps: PipelineDeps = {
   loadConfig,
   probeClip,
   prepareClip,
+  ensureMaster,
   transcribeProject,
   alignScript,
   planEdit,

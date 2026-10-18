@@ -15,6 +15,7 @@ import type { Clip, Project, Segment, Timeline } from "../core/schema.ts";
 
 type SpeakerSide = Project["speakerSide"];
 import { SAMPLE_RATE, atomicOutput, cropFilter, type MediaOptions } from "./prepare.ts";
+import { needsMaster, videoSource } from "./conform.ts";
 
 export type ProfileName = "preview" | "final";
 
@@ -238,7 +239,8 @@ export async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<vo
 export async function ensureSegments(slug: string, timeline: Timeline, profileName: ProfileName, opts: EnsureOptions = {}): Promise<EnsureResult> {
   const config = opts.config ?? (await loadConfig());
   const zoomed = timeline.segments.some((seg) => seg.zoom && seg.zoom > 1);
-  const project = !opts.clips || (zoomed && !opts.framing) ? await loadProject(slug) : null;
+  const conformed = (opts.clips ?? []).some(needsMaster);
+  const project = !opts.clips || ((zoomed || conformed) && !opts.framing) ? await loadProject(slug) : null;
   const clips = opts.clips ?? project!.clips;
   const framing = opts.framing ?? project?.speakerSide ?? "center";
   const fps = timeline.fps;
@@ -249,6 +251,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
 
   const byId = new Map(clips.map((c) => [c.id, c]));
   const stats = new Map<string, ClipStat>();
+  const sources = new Map<string, { path: string; crop?: Clip["crop"] }>();
   for (const seg of timeline.segments) {
     const clip = byId.get(seg.clipId);
     if (!clip) throw new Error(`Timeline references unknown clip ${seg.clipId}`);
@@ -256,18 +259,21 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
     if (seg.start >= clip.duration) throw new Error(`Segment of ${clip.name} starts at ${seg.start}s, past the clip end (${clip.duration}s)`);
     if (!stats.has(clip.id)) {
       if (!existsSync(clip.path)) throw new Error(`${clip.name}: source recording not found at ${clip.path}`);
-      stats.set(clip.id, statSync(clip.path));
+      // the conformed master when the clip has picture fixes (mirror, stabilize), else the original
+      const src = videoSource(slug, clip, framing);
+      sources.set(clip.id, src);
+      stats.set(clip.id, statSync(src.path));
     }
   }
 
   const pieces = planVideoPieces(timeline);
   const files: SegmentFiles[] = pieces.map((piece) => {
-    const clip = byId.get(piece.clipId)!;
-    const stat = stats.get(clip.id)!;
-    const cropSig = clip.crop ? `:crop${clip.crop.w}x${clip.crop.h}+${clip.crop.x}+${clip.crop.y}` : "";
+    const src = sources.get(piece.clipId)!;
+    const stat = stats.get(piece.clipId)!;
+    const cropSig = src.crop ? `:crop${src.crop.w}x${src.crop.h}+${src.crop.x}+${src.crop.y}` : "";
     const key = piece.kind === "seg"
-      ? segmentKey(clip, { start: piece.f0 / fps, frames: piece.frames }, sig + zoomSignature(piece, framing) + cropSig, fps, stat)
-      : segmentKey(clip, { start: piece.aF0 / fps, frames: piece.frames }, `${sig}${cropSig}:dissolve-into${piece.bF0}`, fps, stat);
+      ? segmentKey(src, { start: piece.f0 / fps, frames: piece.frames }, sig + zoomSignature(piece, framing) + cropSig, fps, stat)
+      : segmentKey(src, { start: piece.aF0 / fps, frames: piece.frames }, `${sig}${cropSig}:dissolve-into${piece.bF0}`, fps, stat);
     return { key, video: join(dirs.video, `${key}.mp4`) };
   });
 
@@ -288,11 +294,12 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
   opts.onProgress?.(total ? 0 : 1, total ? `Encoding ${total} ${label} segments` : `All ${files.length} ${label} segments cached`);
 
   await pool(jobs, opts.concurrency ?? 2, async (job) => {
-    const { piece, clip, f } = job;
-    const o = { framing, crop: clip.crop };
+    const { piece, f } = job;
+    const src = sources.get(piece.clipId)!;
+    const o = { framing, crop: src.crop };
     const args = (part: string) => piece.kind === "seg"
-      ? videoSegmentArgs(clip.path, { start: piece.f0 / fps, frames: piece.frames, zoom: piece.zoom }, profile, part, o)
-      : dissolveArgs(clip.path, piece, profile, part, o);
+      ? videoSegmentArgs(src.path, { start: piece.f0 / fps, frames: piece.frames, zoom: piece.zoom }, profile, part, o)
+      : dissolveArgs(src.path, piece, profile, part, o);
     await atomicOutput(f.video, (part) => ffmpeg(args(part), { signal: opts.signal, log }));
     done++;
     opts.onProgress?.(done / total, `Encoded ${done}/${total} ${label} segments`);
