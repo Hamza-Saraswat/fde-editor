@@ -46,4 +46,14 @@ describe("conformed masters", () => {
     // turning mirror off again: no master needed, the original is read
     expect(videoSource("p1", { ...clip, mirror: false }, "center").path).toBe(src);
   });
+
+  it("a stabilized master keeps every frame (needs python3 with OpenCV, as on the editing Mac)", async () => {
+    const hasCv = (() => { try { execFileSync("python3", ["-c", "import cv2, numpy"]); return true; } catch { return false; } })();
+    if (!hasCv) return;
+    const clip: Clip = { ...(await probeClip(src, "c1")), stabilize: true };
+    const out = await ensureMaster("p2", clip, "center");
+    expect(existsSync(out!)).toBe(true);
+    expect(existsSync(out!.replace(/\.master\.mp4$/, ".stab.json"))).toBe(true);
+    expect(probe(out!, "stream=nb_read_frames")).toBe(probe(src, "stream=nb_read_frames"));
+  }, 120_000);
 });

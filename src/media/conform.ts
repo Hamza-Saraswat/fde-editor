@@ -5,7 +5,7 @@
 // so changing a fix makes a new master (and new segment cache keys) instead of reusing a stale one.
 import { createHash } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
-import { readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { REPO_ROOT, projectPaths } from "../core/paths.ts";
 import { ffmpeg, run } from "../core/proc.ts";
@@ -58,6 +58,7 @@ export async function ensureMaster(slug: string, clip: Clip, framing: Project["s
   const out = masterPath(slug, clip, framing);
   if (existsSync(out)) return out;
   const dir = mediaDir(slug);
+  await mkdir(dir, { recursive: true });
   const log = opts.log ?? join(projectPaths(slug).runsDir, "conform.log");
   const crop = clip.crop ? ["--crop", `${clip.crop.w}:${clip.crop.h}:${clip.crop.x}:${clip.crop.y}`] : [];
   const mirror = clip.mirror ? ["--mirror"] : [];
