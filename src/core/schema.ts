@@ -339,6 +339,14 @@ export type Segment = {
   outStart: number; // where it lands in the output
   zoom?: number; // punch-in scale (absent = 1, no zoom)
   softIn?: number; // frames of dissolve from the previous segment, centred on the join (soft jump cut)
+  // Where the kept audio really starts and ends (source seconds), when the frame grid widened the
+  // picture past it: the widened slivers are cut material, so the mix silences them.
+  audioIn?: number;
+  audioOut?: number;
+  // ms of fade at an edge that sits inside continuous speech: the word next to the cut already carries
+  // the start of the cut word (lips closing for "but" at the end of "buy"), so it ends on a soft fade
+  fadeInMs?: number;
+  fadeOutMs?: number;
 };
 
 export type PlacedOverlay = { overlayId: string; cueId: string; start: number; end: number }; // output seconds

@@ -102,6 +102,7 @@ export function keptWordIds(edit: Edit, transcript: Transcript): Set<string> {
 
 const MIN_KEPT = 0.06;
 const SNAP_TO_CUT = 0.3; // seconds a side graphic may shift to appear on a cut
+const MIDFLOW_FADE_MS = 60; // fade where a cut edge sits inside continuous speech
 
 /**
  * A kept word's span with the parts an enabled cut covers taken off its edges. ASR stamps are coarse
@@ -123,7 +124,7 @@ export function trimToRemoval(w: Word, ranges: Range[]): Word {
 }
 
 type Island = { first: Word; last: Word; startPad: number; endPad: number };
-type Built = { start: number; end: number; firstWordId: string };
+type Built = { start: number; end: number; firstWordId: string; fadeIn?: boolean; fadeOut?: boolean };
 
 export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[], config: Config): Timeline {
   const fps = config.output.fps;
@@ -146,6 +147,8 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
     const cutRanges = removal.ranges.get(clipId) ?? [];
     // joins the join pass gave a beat of quiet (a content cut that can't land in a pause)
     const breaths = edit.cuts.filter((c) => c.enabled && c.clipId === clipId && c.breathe);
+    // cut edges the join pass found inside continuous speech get a soft audio fade
+    const judged = edit.cuts.filter((c) => c.enabled && c.clipId === clipId && c.join);
     const words = (idx.byClip.get(clipId) ?? []).map((w) => (isRemoved(w) ? w : trimToRemoval(w, cutRanges)));
     const clip = clips.find((c) => c.id === clipId);
     const duration = clip?.duration ?? (words.at(-1)?.end ?? 0) + post;
@@ -195,27 +198,41 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
       start = Math.max(0, start);
       end = Math.min(duration, end);
       if (end <= start) continue;
+      const fadeIn = judged.some((c) => !c.join!.quietAfter && Math.abs(c.end - start) < 0.6 && c.end <= isl.first.start + EPS);
+      const fadeOut = judged.some((c) => !c.join!.quietBefore && Math.abs(c.start - end) < 0.6 && c.start >= isl.last.end - EPS);
       const prev = built.at(-1);
-      if (prev && start <= prev.end + EPS) prev.end = Math.max(prev.end, end);
-      else built.push({ start, end, firstWordId: isl.first.id });
+      if (prev && start <= prev.end + EPS) {
+        prev.end = Math.max(prev.end, end);
+        prev.fadeOut = fadeOut;
+      } else built.push({ start, end, firstWordId: isl.first.id, fadeIn, fadeOut });
     }
 
     // 3. snap to the frame grid, merge what now touches, drop slivers. Always widen (start down, end
     //    up): a cut that ends exactly where a kept word starts must never clip that word's onset.
-    //    The cost is at most one frame (≤ 33 ms at 30 fps) of the cut material, which is inaudible.
+    //    The picture costs at most one frame (≤ 33 ms at 30 fps) of the cut material; the audio is cut
+    //    at the exact point (audioIn/audioOut) and the mix silences the widened sliver, because 33 ms of a
+    //    cut word is audible ("buy, b…" heard as "vibe").
     const maxFrame = Math.floor(duration * fps + EPS);
-    const snapped: { sf: number; ef: number; firstWordId: string }[] = [];
+    const snapped: { sf: number; ef: number; a0: number; a1: number; firstWordId: string; fadeIn?: boolean; fadeOut?: boolean }[] = [];
     for (const b of built) {
       const sf = Math.max(0, Math.floor(b.start * fps + EPS));
       const ef = Math.min(maxFrame, Math.ceil(b.end * fps - EPS));
       const prev = snapped.at(-1);
-      if (prev && sf <= prev.ef) prev.ef = Math.max(prev.ef, ef);
-      else snapped.push({ sf, ef, firstWordId: b.firstWordId });
+      if (prev && sf <= prev.ef) {
+        prev.ef = Math.max(prev.ef, ef);
+        prev.a1 = Math.max(prev.a1, b.end);
+        prev.fadeOut = b.fadeOut;
+      } else snapped.push({ sf, ef, a0: b.start, a1: b.end, firstWordId: b.firstWordId, fadeIn: b.fadeIn, fadeOut: b.fadeOut });
     }
     for (const s of snapped) {
       const frames = s.ef - s.sf;
       if (frames < 2) continue;
-      segments.push({ clipId, start: s.sf / fps, end: s.ef / fps, frames, outStart: outFrame / fps });
+      const seg: Segment = { clipId, start: s.sf / fps, end: s.ef / fps, frames, outStart: outFrame / fps };
+      if (s.a0 - seg.start > 0.002) seg.audioIn = Math.round(s.a0 * 1000) / 1000;
+      if (seg.end - s.a1 > 0.002) seg.audioOut = Math.round(s.a1 * 1000) / 1000;
+      if (s.fadeIn) seg.fadeInMs = MIDFLOW_FADE_MS;
+      if (s.fadeOut) seg.fadeOutMs = MIDFLOW_FADE_MS;
+      segments.push(seg);
       segFirstWord.push(s.firstWordId);
       outFrame += frames;
     }

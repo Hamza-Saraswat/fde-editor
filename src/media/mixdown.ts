@@ -14,14 +14,22 @@ import { readWavLayout, sampleRange } from "./segments.ts";
 const CH = 2; // stereo, s16le
 
 /** One segment's sample range in its clip, plus the handles it shares with its neighbours. */
-export type Piece = { clipId: string; s0: number; s1: number; lead: number; trail: number };
+/** a0/a1: the exact kept audio (clip samples) when the frame grid widened the piece past it. */
+export type Piece = { clipId: string; s0: number; s1: number; lead: number; trail: number; a0?: number; a1?: number; fadeIn?: number; fadeOut?: number };
+
+const EDGE_RAMP = 0.004; // seconds of ramp where the mix silences a widened sliver (no click)
 
 /** Pure: pieces for a timeline. Each handle is half the crossfade, at most half of either piece. */
 export function planPieces(timeline: Timeline, crossfadeMs: number): Piece[] {
   const half = Math.round(((crossfadeMs / 1000) * SAMPLE_RATE) / 2);
   const pieces = timeline.segments.map((s) => {
     const [s0, s1] = sampleRange(s, timeline.fps);
-    return { clipId: s.clipId, s0, s1, lead: 0, trail: 0 };
+    const p: Piece = { clipId: s.clipId, s0, s1, lead: 0, trail: 0 };
+    if (s.audioIn !== undefined) p.a0 = Math.round(s.audioIn * SAMPLE_RATE);
+    if (s.audioOut !== undefined) p.a1 = Math.round(s.audioOut * SAMPLE_RATE);
+    if (s.fadeInMs) p.fadeIn = Math.round((s.fadeInMs / 1000) * SAMPLE_RATE);
+    if (s.fadeOutMs) p.fadeOut = Math.round((s.fadeOutMs / 1000) * SAMPLE_RATE);
+    return p;
   });
   for (let i = 1; i < pieces.length; i++) {
     const a = pieces[i - 1]!, b = pieces[i]!;
@@ -45,6 +53,21 @@ export function mixPiece(piece: Piece, data: Int16Array, carry: Float32Array, ed
   const gain = (from: number, len: number, g: (k: number) => number) => {
     for (let k = 0; k < len; k++) for (let c = 0; c < CH; c++) f[(from + k) * CH + c]! *= g(k);
   };
+  // silence what the frame grid added past the exact cut (cut material), with a tiny ramp
+  if (piece.a0 !== undefined || piece.a1 !== undefined) {
+    const ramp = Math.max(1, Math.round(EDGE_RAMP * SAMPLE_RATE));
+    const first = piece.s0 - piece.lead; // clip sample at data index 0
+    const a0 = (piece.a0 ?? -Infinity) - first, a1 = (piece.a1 ?? Infinity) - first;
+    gain(0, frames, (k) => Math.max(0, Math.min(1, (k - a0) / ramp + 1, (a1 - k) / ramp + 1)));
+  }
+  // a soft fade where the edge sits inside continuous speech (ends on the vowel, not the next consonant)
+  if (piece.fadeIn || piece.fadeOut) {
+    const first = piece.s0 - piece.lead;
+    const inAt = (piece.a0 ?? piece.s0) - first, outAt = (piece.a1 ?? piece.s1) - first;
+    const fi = piece.fadeIn ?? 0, fo = piece.fadeOut ?? 0;
+    gain(0, frames, (k) => (fi && k < inAt + fi ? Math.sin((Math.PI / 2) * Math.max(0, Math.min(1, (k - inAt) / fi))) : 1)
+      * (fo && k > outAt - fo ? Math.cos((Math.PI / 2) * Math.max(0, Math.min(1, (k - (outAt - fo)) / fo))) : 1));
+  }
   const fadeIn = piece.lead > 0 ? 2 * piece.lead : edge.first ? Math.min(edge.fade, frames) : 0;
   gain(0, fadeIn, (k) => Math.sin((Math.PI / 2) * ((k + 0.5) / fadeIn)));
   const fadeOut = piece.trail > 0 ? 2 * piece.trail : edge.last ? Math.min(edge.fade, frames) : 0;

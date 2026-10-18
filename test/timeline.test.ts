@@ -308,3 +308,24 @@ describe("punch-ins", () => {
     expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, undefined, 1.1, undefined, 1.1]);
   });
 });
+
+describe("exact audio edges", () => {
+  it("record where the kept audio really ends when the frame grid widens the picture into a cut", () => {
+    // "buy, | but …": the cut starts at 0.705 s, but the segment's last frame ends at 0.7333 s
+    const ws = words("c1", [["buy,", 0.4, 0.705], ["but", 0.705, 0.85], ["Open", 2.0, 2.3]]);
+    const tl = buildTimeline(editOf({ cuts: [cut("c1", 0.705, 1.9)] }), transcriptOf(ws), [clip("c1", 3)], config(30));
+    const a = tl.segments[0]!;
+    expect(a.end).toBeGreaterThan(0.705);
+    expect(a.audioOut).toBeCloseTo(0.705, 3);
+  });
+});
+
+describe("soft fades inside continuous speech", () => {
+  it("fade the edge of a kept word when the cut beside it can't land in a pause", () => {
+    const ws = words("c1", [["buy,", 0.4, 0.705], ["but", 0.705, 0.85], ["Open", 2.0, 2.3]]);
+    const midFlow = { ...cut("c1", 0.705, 1.9), reason: "adlib" as const, join: { quietBefore: false, quietAfter: true, continuation: true, newSentence: true } };
+    const tl = buildTimeline(editOf({ cuts: [midFlow] }), transcriptOf(ws), [clip("c1", 3)], config(30));
+    expect(tl.segments[0]!.fadeOutMs).toBe(60);
+    expect(tl.segments[1]!.fadeInMs).toBeUndefined(); // that side lands in a pause
+  });
+});

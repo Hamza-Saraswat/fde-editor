@@ -58,3 +58,17 @@ describe("crossfaded mixdown", () => {
     expect(() => mixPiece(p, new Int16Array((4800 + 720) * 2), new Float32Array(0), { first: false, last: true, fade: 720 })).toThrow(/handles/);
   });
 });
+
+describe("exact audio edges", () => {
+  it("silences what the frame grid added past the cut, and keeps the rest untouched", () => {
+    const tl = timelineOf([[0.5, 1.0]]);
+    const p = planPieces(tl, 30)[0]!;
+    p.a1 = p.s1 - 1440; // the real cut is 30 ms before the frame boundary (a widened sliver of a cut word)
+    const mix = crossfadePieces([p], [read(p)], 720);
+    const tail = mix.slice((p.a1 - p.s0 + 200) * 2, (p.s1 - p.s0 - 720) * 2); // past the 4 ms ramp, before the edge fade
+    expect(tail.length).toBeGreaterThan(500);
+    expect(Math.max(...Array.from(tail, Math.abs))).toBe(0);
+    expect(mix[(p.a1 - p.s0 - 10) * 2]).toBe(source[(p.a1 - 10) * 2]); // up to the cut, the audio is as recorded
+    for (let k = 4000; k < 4200; k++) expect(mix[k * 2]).toBe(source[(p.s0 + k) * 2]); // middle untouched
+  });
+});
