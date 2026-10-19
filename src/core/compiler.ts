@@ -13,6 +13,7 @@ export type CompileContext = {
   clips: Clip[];
   previous?: Edit | null;
   keepGraphics?: boolean; // re-plan the cut only: keep the previous edit's graphics (briefs, anchors, sides) as they are
+  render?: { intro: boolean; outro: boolean }; // channel defaults for a new edit (config.render)
 };
 
 export type CompileResult = { edit: Edit; warnings: string[] };
@@ -368,8 +369,9 @@ export function planToEdit(plan: EditPlan, ctx: CompileContext): CompileResult {
     takeGroups: groups,
     overlays,
     chapters,
-    intro: previous?.intro ?? true,
-    outro: previous?.outro ?? true,
+    intro: previous?.intro ?? ctx.render?.intro ?? false,
+    outro: previous?.outro ?? ctx.render?.outro ?? false,
+    ...(previous?.holds ? { holds: previous.holds } : {}),
     ...(previous?.style ? { style: previous.style } : {}),
     ...(previous?.punchIn !== undefined ? { punchIn: previous.punchIn } : {}),
   };

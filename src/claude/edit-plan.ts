@@ -74,7 +74,7 @@ export async function applyPlan(prep: PreparedPlan, structured: unknown): Promis
   const paths = projectPaths(prep.slug);
   const { script, transcript, candidates, project, previous } = prep.ctx;
   const plan = await writeJson(paths.plan, EditPlanSchema, parsed.data);
-  const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous: previous ?? undefined, keepGraphics: prep.keepGraphics });
+  const compiled = planToEdit(plan, { script, transcript, candidates, clips: project.clips, previous: previous ?? undefined, keepGraphics: prep.keepGraphics, render: prep.ctx.config.render });
   // the edit style and the join pass: which fillers and stutters stay, where each cut lands
   const styled = await restyle(prep.slug, compiled.edit, { config: prep.ctx.config, clips: project.clips, transcript, script });
   const edit = await writeJson(paths.edit, EditSchema, styled);
@@ -158,7 +158,7 @@ export function buildPlanInput({ project, script, transcript, candidates, config
   return {
     project: project.slug,
     title: script.title,
-    style: { fillers: style.fillers, fillerMinMs: style.fillerMinMs, minSegmentMs: style.minSegmentMs },
+    style: { fillers: style.fillers, fillerMinMs: style.fillerMinMs, minSegmentMs: style.minSegmentMs, maxPauseMs: style.maxPauseMs },
     speakerSide: project.speakerSide,
     graphicsSide: project.speakerSide === "center" ? "either (choose per cue)" : project.speakerSide === "left" ? "right" : "left",
     formats: {

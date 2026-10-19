@@ -4,8 +4,18 @@
     {
       "name": "fde-editor",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": [
+        "dev"
+      ],
       "port": 5317
+    },
+    {
+      "name": "fde-editor-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "start"
+      ],
+      "port": 4317
     }
   ]
 }

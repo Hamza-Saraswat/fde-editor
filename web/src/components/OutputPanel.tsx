@@ -6,7 +6,7 @@ import { formatClock } from "../lib/timelineMath.ts";
 import { Icon } from "./Icon.tsx";
 
 export function OutputPanel() {
-  const { state, runStage, dirty, saveNow } = useProject();
+  const { state, runStage, dirty, saveNow, edit, apply } = useProject();
   const [copied, setCopied] = useState(false);
   const b = state.bundle!;
   const out = b.outputs;
@@ -51,8 +51,20 @@ export function OutputPanel() {
                   ? "Couldn't load final.mp4. Render it again."
                   : rendering
                     ? "Rendering the final video. It shows here when it's done."
-                    : "Render builds the full-resolution video with the graphics, intro and outro, plus the chapters and captions."}
+                    : "Render builds the full-resolution video with the graphics, plus the chapters and captions."}
               </p>
+            </div>
+          )}
+          {edit && (
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-[12.5px] text-ink-2">
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" checked={edit.intro} onChange={(e) => apply((x) => ({ ...x, intro: e.target.checked }), "intro")} />
+                Brand intro
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" checked={edit.outro} onChange={(e) => apply((x) => ({ ...x, outro: e.target.checked }), "outro")} />
+                End card <span className="text-muted">(off: the video fades out)</span>
+              </label>
             </div>
           )}
           {out.final && (

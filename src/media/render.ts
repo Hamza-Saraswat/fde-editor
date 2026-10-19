@@ -170,6 +170,8 @@ export async function buildPreview(slug: string, timeline: Timeline, opts: Ensur
 
 // ---------- final ----------
 
+const END_FADE = 0.5; // seconds of fade to black at the very end when there is no end card
+
 /** A rendered transparent graphic (ProRes 4444 .mov) and when it shows, in A-roll seconds. */
 export type GraphicOverlay = { cueId: string; file: string; start: number; end: number };
 
@@ -266,12 +268,16 @@ export async function renderFinal(slug: string, timeline: Timeline, opts: FinalO
     graph.push(sideVideoChain(nextInput++, outro, W, H, fps, "[vo]"));
     vLabels.push("[vo]");
   }
+  // without an end card the video fades out (picture and sound) instead of stopping on a frame
+  const fadeAt = (totalFrames / fps - END_FADE).toFixed(3);
+  const vFade = outro ? "" : `,fade=t=out:st=${fadeAt}:d=${END_FADE}`;
+  const aFade = outro ? "" : `,afade=t=out:st=${fadeAt}:d=${END_FADE}`;
   graph.push(vLabels.length > 1
-    ? `${vLabels.join("")}concat=n=${vLabels.length}:v=1:a=0,format=yuv420p,${TAG_BT709}[v]`
-    : `[main]format=yuv420p,${TAG_BT709}[v]`);
+    ? `${vLabels.join("")}concat=n=${vLabels.length}:v=1:a=0${vFade},format=yuv420p,${TAG_BT709}[v]`
+    : `[main]format=yuv420p${vFade},${TAG_BT709}[v]`);
   args.push("-i", mixWav);
   graph.push(`[${nextInput}:a:0]${loudnormFilter(config.loudness, measured)},aresample=${SAMPLE_RATE},` +
-    `apad=whole_len=${totalSamples},atrim=end_sample=${totalSamples}[a]`);
+    `apad=whole_len=${totalSamples},atrim=end_sample=${totalSamples}${aFade}[a]`);
   args.push("-filter_complex", graph.join(";"), "-map", "[v]", "-map", "[a]",
     ...finalEncodeArgs({ width: W, height: H, fps, frames: totalFrames }));
 
