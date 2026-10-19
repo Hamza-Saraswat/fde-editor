@@ -86,12 +86,14 @@ function pictureFilter(profile: EncodeProfile, zoom: number | undefined, o: Filt
 
 /** Pure: ffmpeg args for one frame-exact, video-only segment (same recipe as the spike). */
 export function videoSegmentArgs(
-  src: string, seg: Pick<Segment, "start" | "frames" | "zoom">, profile: EncodeProfile, out: string,
+  src: string, seg: Pick<Segment, "start" | "frames" | "zoom"> & { live?: number }, profile: EncodeProfile, out: string,
   o: FilterOpts = {},
 ): string[] {
   const { fps } = profile;
   const vf = [
     ...pictureFilter(profile, seg.zoom, o),
+    // a held tail: only the first `live` frames move, the last of them repeats to the end
+    ...(seg.live !== undefined && seg.live < seg.frames ? [`trim=end_frame=${Math.max(1, seg.live)}`] : []),
     "tpad=stop=-1:stop_mode=clone", // a segment that runs into the clip's end still gets exactly N frames
   ].join(",");
   return [
@@ -107,7 +109,7 @@ export function videoSegmentArgs(
 
 /** One piece of the concatenated video: a stretch of a clip, or a dissolve across a join inside it. */
 export type VideoPiece =
-  | { kind: "seg"; clipId: string; f0: number; frames: number; zoom?: number }
+  | { kind: "seg"; clipId: string; f0: number; frames: number; zoom?: number; live?: number }
   | { kind: "dissolve"; clipId: string; aF0: number; bF0: number; frames: number };
 
 /**
@@ -132,7 +134,9 @@ export function planVideoPieces(timeline: Pick<Timeline, "fps" | "segments">): V
       f0 += hB;
       frames -= hB;
     }
-    out.push({ kind: "seg", clipId: s.clipId, f0, frames, ...(s.zoom ? { zoom: s.zoom } : {}) });
+    // a picture hold: frames from holdOut on repeat the frame before it
+    const live = s.holdOut !== undefined ? Math.round(s.holdOut * fps) - f0 : undefined;
+    out.push({ kind: "seg", clipId: s.clipId, f0, frames, ...(s.zoom ? { zoom: s.zoom } : {}), ...(live !== undefined && live > 0 && live < frames ? { live } : {}) });
   });
   return out;
 }
@@ -272,7 +276,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
     const stat = stats.get(piece.clipId)!;
     const cropSig = src.crop ? `:crop${src.crop.w}x${src.crop.h}+${src.crop.x}+${src.crop.y}` : "";
     const key = piece.kind === "seg"
-      ? segmentKey(src, { start: piece.f0 / fps, frames: piece.frames }, sig + zoomSignature(piece, framing) + cropSig, fps, stat)
+      ? segmentKey(src, { start: piece.f0 / fps, frames: piece.frames }, sig + zoomSignature(piece, framing) + cropSig + (piece.live ? `:live${piece.live}` : ""), fps, stat)
       : segmentKey(src, { start: piece.aF0 / fps, frames: piece.frames }, `${sig}${cropSig}:dissolve-into${piece.bF0}`, fps, stat);
     return { key, video: join(dirs.video, `${key}.mp4`) };
   });
@@ -298,7 +302,7 @@ export async function ensureSegments(slug: string, timeline: Timeline, profileNa
     const src = sources.get(piece.clipId)!;
     const o = { framing, crop: src.crop };
     const args = (part: string) => piece.kind === "seg"
-      ? videoSegmentArgs(src.path, { start: piece.f0 / fps, frames: piece.frames, zoom: piece.zoom }, profile, part, o)
+      ? videoSegmentArgs(src.path, { start: piece.f0 / fps, frames: piece.frames, zoom: piece.zoom, live: piece.live }, profile, part, o)
       : dissolveArgs(src.path, piece, profile, part, o);
     await atomicOutput(f.video, (part) => ffmpeg(args(part), { signal: opts.signal, log }));
     done++;

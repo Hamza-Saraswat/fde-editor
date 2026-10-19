@@ -101,6 +101,7 @@ export function keptWordIds(edit: Edit, transcript: Transcript): Set<string> {
 // ---------- the timeline ----------
 
 const MIN_KEPT = 0.06;
+const MIN_TRIM_SAVE = 0.6; // a pause trim is a jump cut: never make one that saves less than this
 const SNAP_TO_CUT = 0.3; // seconds a side graphic may shift to appear on a cut
 const MIDFLOW_FADE_MS = 60; // fade where a cut edge sits inside continuous speech
 
@@ -131,9 +132,12 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
   const pre = config.edit.preMs / 1000;
   const post = config.edit.postMs / 1000;
   const style = resolveStyle(config, edit);
+  // only dead air is trimmed: a pause longer than maxPause shrinks to pauseKeep (one jump cut), and
+  // only when that saves enough to be worth a cut. Shorter pauses are the speaker's timing and stay.
   const maxPause = style.maxPauseMs / 1000;
-  const pausePre = Math.max(pre, maxPause / 2);
-  const pausePost = Math.max(post, maxPause / 2);
+  const keepPause = Math.min(style.pauseKeepMs, style.maxPauseMs) / 1000;
+  const pausePre = Math.max(pre, keepPause / 2);
+  const pausePost = Math.max(post, keepPause / 2);
 
   const idx = indexWords(transcript);
   const removal = computeRemoval(edit, idx);
@@ -149,6 +153,7 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
     const breaths = edit.cuts.filter((c) => c.enabled && c.clipId === clipId && c.breathe);
     // cut edges the join pass found inside continuous speech get a soft audio fade
     const judged = edit.cuts.filter((c) => c.enabled && c.clipId === clipId && c.join);
+    const holds = (edit.holds ?? []).filter((h) => h.clipId === clipId);
     const words = (idx.byClip.get(clipId) ?? []).map((w) => (isRemoved(w) ? w : trimToRemoval(w, cutRanges)));
     const clip = clips.find((c) => c.id === clipId);
     const duration = clip?.duration ?? (words.at(-1)?.end ?? 0) + post;
@@ -167,7 +172,8 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
       if (cur) {
         const prev: Word = cur.last;
         const hard: boolean = i - prevKeptIdx > 1 || blocked.some((r: Range): boolean => r.start < w.start && r.end > prev.end);
-        const pause = !hard && w.start - prev.end > maxPause;
+        const gap = w.start - prev.end;
+        const pause = !hard && gap > maxPause && gap - keepPause >= MIN_TRIM_SAVE;
         if (hard || pause) {
           cur.endPad = hard ? post : pausePost;
           islands.push(cur);
@@ -232,6 +238,9 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
       if (seg.end - s.a1 > 0.002) seg.audioOut = Math.round(s.a1 * 1000) / 1000;
       if (s.fadeIn) seg.fadeInMs = MIDFLOW_FADE_MS;
       if (s.fadeOut) seg.fadeOutMs = MIDFLOW_FADE_MS;
+      // the picture holds its last clean frame over a reach to stop the recording (audio plays on)
+      const hold = holds.find((h) => h.start > seg.start + 0.1 && h.start < seg.end - EPS && h.end >= seg.end - 0.05);
+      if (hold) seg.holdOut = Math.round(hold.start * fps) / fps;
       segments.push(seg);
       segFirstWord.push(s.firstWordId);
       outFrame += frames;
@@ -350,16 +359,24 @@ export function buildTimeline(edit: Edit, transcript: Transcript, clips: Clip[],
     ov.end = clamp(ov.end + d, 0, timeline.duration);
   }
 
-  // Punch-ins: every other segment of a run from one clip is zoomed, so each jump cut changes the framing.
+  // Punch-ins: a jump cut inside one take changes the framing (in, then out at the next cut). A framing
+  // holds at least punchHoldMs: a cut sooner than that keeps it, so the picture never pumps in and out.
   // A new clip (another take or angle) starts unzoomed. A cut hidden under a full-frame cutaway doesn't
   // switch, so the framing is the same on both sides of the cutaway.
   if (style.jumpCuts === "punch-in" && config.edit.punchInZoom > 1) {
     const covered = (t: number) => timeline.overlays.some((o) => layoutOf.get(o.overlayId) === "full" && t > o.start + EPS && t < o.end - EPS);
+    const hold = style.punchHoldMs / 1000;
     let zoomed = false;
+    let since = 0;
     segments.forEach((s, i) => {
       const prev = segments[i - 1];
-      if (!prev || prev.clipId !== s.clipId) zoomed = false;
-      else if (!covered(s.outStart)) zoomed = !zoomed;
+      if (!prev || prev.clipId !== s.clipId) {
+        zoomed = false;
+        since = s.outStart;
+      } else if (!covered(s.outStart) && s.outStart - since >= hold - EPS) {
+        zoomed = !zoomed;
+        since = s.outStart;
+      }
       if (zoomed) s.zoom = config.edit.punchInZoom;
     });
   }

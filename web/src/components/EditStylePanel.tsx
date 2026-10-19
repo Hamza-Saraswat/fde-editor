@@ -55,6 +55,13 @@ export function EditStylePanel() {
   const inPause = judged.filter((c) => c.join!.quietBefore || c.join!.quietAfter).length;
   const joins = Math.max(0, lens.length - 1);
   const perMin = tl && tl.duration > 0 ? (joins / tl.duration) * 60 : 0;
+  // joins inside one take where no cut removed anything: a long pause was trimmed
+  const segs = tl?.segments ?? [];
+  const pauseTrims = segs.slice(1).filter((s, i) => {
+    const a = segs[i]!;
+    return a.clipId === s.clipId && !edit.cuts.some((c) => c.enabled && c.clipId === s.clipId && c.start < s.start && c.end > a.end);
+  }).length;
+  const framings = segs.slice(1).filter((s, i) => (s.zoom ?? 1) !== (segs[i]!.zoom ?? 1)).length;
 
   return (
     <section aria-labelledby="ov-style">
@@ -91,8 +98,9 @@ export function EditStylePanel() {
         {style.fillers === "natural" && (
           <Choice label="Cut stalls longer than" value={style.fillerMinMs} options={[250, 300, 400, 500, 700, 1000]} disabled={busy} onChange={(fillerMinMs) => void change({ fillerMinMs })} />
         )}
-        <Choice label="Longest pause kept" value={style.maxPauseMs} options={[300, 400, 500, 700, 1000, 1500]} disabled={busy} onChange={(maxPauseMs) => void change({ maxPauseMs })} />
-        <Choice label="Avoid slivers shorter than" value={style.minSegmentMs} options={[0, 800, 1200, 2000]} disabled={busy} onChange={(minSegmentMs) => void change({ minSegmentMs })} />
+        <Choice label="Trim pauses longer than" value={style.maxPauseMs} options={[700, 1000, 1500, 2000, 3000]} disabled={busy} onChange={(maxPauseMs) => void change({ maxPauseMs })} />
+        <Choice label="Trim them down to" value={style.pauseKeepMs} options={[400, 500, 700, 1000]} disabled={busy} onChange={(pauseKeepMs) => void change({ pauseKeepMs })} />
+        <Choice label="Keep cuts at least this far apart" value={style.minSegmentMs} options={[0, 1500, 2000, 3000, 4000]} disabled={busy} onChange={(minSegmentMs) => void change({ minSegmentMs })} />
         <div className="flex items-center gap-2 px-2 py-1">
           <span className="flex-1 text-[12.5px] text-ink">Jump cuts</span>
           <Segmented
@@ -100,12 +108,15 @@ export function EditStylePanel() {
             value={style.jumpCuts}
             onChange={(jumpCuts) => void change({ jumpCuts })}
             options={[
-              { value: "punch-in", label: "Punch-in", title: "Zoom in a little on every other section; cuts under a full-screen cutaway don't switch", disabled: busy },
+              { value: "punch-in", label: "Punch-in", title: "A cut switches between the normal and a closer framing; each framing holds a few seconds, and cuts under a full-screen cutaway don't switch", disabled: busy },
               { value: "none", label: "Hard", title: "Plain jump cuts", disabled: busy },
               { value: "soft", label: "Dissolve", title: `A ${style.softFrames}-frame dissolve across each cut`, disabled: busy },
             ]}
           />
         </div>
+        {style.jumpCuts === "punch-in" && (
+          <Choice label="Hold each framing at least" value={style.punchHoldMs} options={[0, 2000, 4000, 6000, 8000]} disabled={busy} onChange={(punchHoldMs) => void change({ punchHoldMs })} />
+        )}
       </div>
       <h3 className="mb-1 mt-4 text-[12px] font-semibold text-ink-2">Picture</h3>
       <ul role="list" className="grid gap-1">
@@ -120,7 +131,7 @@ export function EditStylePanel() {
       </ul>
       {tl && (
         <p className="meta mt-2 px-2 tc">
-          {joins} cuts · {perMin.toFixed(1)} a minute · {lens.filter((l) => l < 1).length} pieces under 1 s
+          {joins} cuts · {perMin.toFixed(1)} a minute · {pauseTrims} pause trims · {framings} framing changes · {lens.filter((l) => l < style.minSegmentMs / 1000).length} pieces under {MS(style.minSegmentMs)}
           {judged.length ? ` · ${Math.round((100 * inPause) / judged.length)}% land in a pause` : ""}
         </p>
       )}

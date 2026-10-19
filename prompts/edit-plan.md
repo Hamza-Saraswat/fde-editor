@@ -79,11 +79,22 @@ so the goal is a cut that sounds and looks natural, not one with every filler re
     15%"), cut the wrong one with reason `false-start`.
   - **Leave tiny stutters in** ("the the", "V… V4.1") when the only way to remove them is a splice
     inside continuous speech. A small stutter sounds human; a mid-word splice sounds edited.
-- Never leave a sliver of speech (under `minSegmentMs`) between two cuts. One cut at a breath is better
-  than several surgical cuts inside a fluent sentence.
+  - **Cut only the failed attempt, never the retake's opening.** In "The issue when stools… the issue
+    was when the tools started", cut "The issue when stools" and keep "the issue was when the tools…",
+    even when the script words it differently. A sentence that starts mid-thought ("…hasn't. tools
+    started to write the code") is worse than an ad-libbed opening.
+  - **Take a repeated lead word with the false start.** "a whole task and just go without it. And just
+    go without…" cuts "and just go without it." so only one "and" plays.
+- Fewer cuts read better than clean ones. Every cut is a visible jump in the picture. Never leave a
+  sliver of speech (under `minSegmentMs`) between two cuts: one cut at a breath is better than several
+  surgical cuts inside a fluent sentence. Leave a short aside that runs straight into the next word
+  rather than splice it out.
 - After you answer, a join pass enforces these rules in the audio: it absorbs adjacent fillers, keeps
-  last attempts, moves cuts into the quiet between words, and keeps a beat of quiet where a cut can't
-  land in a pause. Your job is the decision; it handles the placement.
+  last attempts and sentence openings, moves cuts into the quiet between words, gives a restart its own
+  pause, resolves cuts that land too close together, and cuts any moment he reaches for the camera.
+  Your job is the decision; it handles the placement.
+- If the script says the same thing twice (a plug in the body and again in the outro), say so in
+  `notes` so Hamza can decide; don't cut either on your own.
 
 ## Word cuts
 
@@ -110,7 +121,8 @@ Give a decision for every `gap` filler candidate that sits inside or between kep
 - cut=false when it is a deliberate dramatic pause: before a punchline or reveal, after a question to
   the viewer, or setting up a list ("Same title. [pause] Different job.").
 
-Long natural pauses are tightened automatically, so do not cut a gap just because it is long.
+Pauses are left alone unless they are dead air (over `maxPauseMs`, about 1.5 s), which is trimmed
+automatically, so do not cut a gap just because it is long. A pause is part of his timing.
 
 ## Graphics cues
 

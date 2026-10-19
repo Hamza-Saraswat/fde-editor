@@ -70,17 +70,25 @@ describe("buildTimeline", () => {
     expect(tl.segments.map((s) => [s.start, s.end])).toEqual([[0.92, 1.3], [1.6, 2.02]]);
   });
 
-  it("tightens a long natural pause to about maxPauseMs instead of removing it", () => {
-    const ws = words("c1", [["a", 1.0, 1.5], ["b", 3.0, 3.5]]);
+  it("trims only dead air: a pause over maxPauseMs shrinks to pauseKeepMs, shorter ones stay as recorded", () => {
     const cfg = config(100);
+    const ws = words("c1", [["a", 1.0, 1.5], ["b", 4.5, 5.0]]); // 3 s of dead air
     const tl = buildTimeline(editOf(), transcriptOf(ws), [clip("c1", 10)], cfg);
     expect(tl.segments).toHaveLength(2);
-    const outPause = sourceToOutput(tl, "c1", 3.0)! - sourceToOutput(tl, "c1", 1.5)!;
-    near(outPause, cfg.edit.maxPauseMs / 1000, 0.02);
-    // a short pause stays as recorded
-    const ws2 = words("c1", [["a", 1.0, 1.5], ["b", 1.8, 2.2]]);
-    const tl2 = buildTimeline(editOf(), transcriptOf(ws2), [clip("c1", 10)], cfg);
-    expect(tl2.segments).toHaveLength(1);
+    const outPause = sourceToOutput(tl, "c1", 4.5)! - sourceToOutput(tl, "c1", 1.5)!;
+    near(outPause, cfg.edit.style.pauseKeepMs / 1000, 0.02);
+    // a 1.3 s pause is the speaker's timing: no cut
+    const ws2 = words("c1", [["a", 1.0, 1.5], ["b", 2.8, 3.2]]);
+    expect(buildTimeline(editOf(), transcriptOf(ws2), [clip("c1", 10)], cfg).segments).toHaveLength(1);
+  });
+
+  it("never makes a pause trim that saves less than 0.6 s (the old 30 ms jump cuts)", () => {
+    const cfg = config(100);
+    const ws = words("c1", [["a", 1.0, 1.5], ["b", 3.1, 3.5]]); // 1.6 s pause
+    const keepClose = editOf({ style: { maxPauseMs: 1500, pauseKeepMs: 1200 } }); // would save 0.4 s
+    expect(buildTimeline(keepClose, transcriptOf(ws), [clip("c1", 10)], cfg).segments).toHaveLength(1);
+    const keepShort = editOf({ style: { maxPauseMs: 1500, pauseKeepMs: 700 } }); // saves 0.9 s
+    expect(buildTimeline(keepShort, transcriptOf(ws), [clip("c1", 10)], cfg).segments).toHaveLength(2);
   });
 
   it("swapping a take swaps the segments", () => {
@@ -285,27 +293,49 @@ describe("cuts win over sloppy word stamps", () => {
 describe("punch-ins", () => {
   const ws = words("c1", [["a", 1.0, 1.4], ["b", 2.0, 2.4], ["c", 3.0, 3.4], ["d", 4.0, 4.4]]);
   const cuts = [cut("c1", 1.5, 1.9), cut("c1", 2.5, 2.9), cut("c1", 3.5, 3.9)];
+  const noHold = { punchHoldMs: 0 };
 
   it("are the default jump-cut treatment, and off when the style says hard cuts", () => {
-    const on = buildTimeline(editOf({ cuts }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    const on = buildTimeline(editOf({ cuts, style: noHold }), transcriptOf(ws), [clip("c1", 10)], config(30));
     expect(on.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, undefined, 1.1]);
-    const hard = buildTimeline(editOf({ cuts, style: { jumpCuts: "none" } }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    const hard = buildTimeline(editOf({ cuts, style: { ...noHold, jumpCuts: "none" } }), transcriptOf(ws), [clip("c1", 10)], config(30));
     expect(hard.segments.map((s) => s.zoom)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it("hold each framing at least punchHoldMs, so cuts close together don't pump in and out", () => {
+    // 11:10–11:22 of Video 1 v2: cuts 1.5 s apart flipped the zoom every time
+    const many = words("c1", [["a", 0.2, 0.9], ["b", 1.6, 2.4], ["c", 3.1, 3.9], ["d", 4.6, 5.4], ["e", 6.1, 6.9], ["f", 7.6, 8.4], ["g", 9.1, 9.9]]);
+    const at = [1.0, 2.5, 4.0, 5.5, 7.0, 8.5].map((t) => cut("c1", t, t + 0.5));
+    const tl = buildTimeline(editOf({ cuts: at }), transcriptOf(many), [clip("c1", 12)], config(30));
+    const changes = tl.segments.slice(1).filter((s, i) => (s.zoom ?? 1) !== (tl.segments[i]!.zoom ?? 1));
+    expect(tl.segments).toHaveLength(7);
+    for (let i = 1; i < changes.length; i++) expect(changes[i]!.outStart - changes[i - 1]!.outStart).toBeGreaterThanOrEqual(4 - 1e-6);
+    expect(changes.length).toBeGreaterThanOrEqual(1);
   });
 
   it("don't switch under a full-frame cutaway, so the framing matches on both sides of it", () => {
     // a full graphic over the second cut: segments 2 and 3 keep the same zoom
     const full = { id: "o1", cueId: "r5", anchorWordId: ws[1]!.id, endWordId: ws[2]!.id, offsetMs: 0, layout: "full" as const, enabled: true, brief: "", assetIds: [], status: "none" as const };
-    const tl = buildTimeline(editOf({ cuts, overlays: [full] }), transcriptOf(ws), [clip("c1", 10)], config(30));
+    const tl = buildTimeline(editOf({ cuts, overlays: [full], style: noHold }), transcriptOf(ws), [clip("c1", 10)], config(30));
     expect(tl.overlays).toHaveLength(1);
     expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, 1.1, undefined]);
   });
 
   it("zoom every other segment of one take, and restart unzoomed on a new clip", () => {
     const w2 = words("c2", [["e", 0.5, 0.9], ["f", 1.5, 1.9]]);
-    const edit = editOf({ cuts: [...cuts, cut("c2", 1.0, 1.4)], clipOrder: ["c1", "c2"], punchIn: true });
+    const edit = editOf({ cuts: [...cuts, cut("c2", 1.0, 1.4)], clipOrder: ["c1", "c2"], punchIn: true, style: noHold });
     const tl = buildTimeline(edit, transcriptOf([...ws, ...w2]), [clip("c1", 10), clip("c2", 10)], config(30));
     expect(tl.segments.map((s) => s.zoom)).toEqual([undefined, 1.1, undefined, 1.1, undefined, 1.1]);
+  });
+});
+
+describe("picture holds", () => {
+  it("freeze the last clean frame over a reach to stop the recording, without touching the audio", () => {
+    const ws = words("c1", [["See", 1.0, 1.3], ["you", 1.3, 1.5], ["soon.", 1.5, 2.4]]);
+    const tl = buildTimeline(editOf({ holds: [{ clipId: "c1", start: 1.9, end: 2.9 }] }), transcriptOf(ws), [clip("c1", 2.9)], config(30));
+    expect(tl.segments).toHaveLength(1);
+    expect(tl.segments[0]!.holdOut).toBeCloseTo(1.9, 2);
+    expect(tl.segments[0]!.end).toBeGreaterThanOrEqual(2.4); // the word still plays to its end
   });
 });
 

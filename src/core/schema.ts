@@ -13,7 +13,7 @@ export const ConfigSchema = z.object({
   edit: z.object({
     preMs: z.number().default(80), // padding kept before a kept word
     postMs: z.number().default(120), // padding kept after a kept word
-    maxPauseMs: z.number().default(400), // longer natural pauses get tightened to this
+    maxPauseMs: z.number().default(1500), // pauses longer than this are dead air and get trimmed (to style.pauseKeepMs)
     fadeMs: z.number().default(30), // length of the audio crossfade centred on every cut
     fillerGapMs: z.number().default(250), // a voiced gap between words longer than this is a filler candidate
     punchInZoom: z.number().min(1).max(1.5).default(1.1), // how far a punch-in zooms (when the edit turns them on)
@@ -32,6 +32,10 @@ export const ConfigSchema = z.object({
     I: z.number().default(-14),
     TP: z.number().default(-1.5),
     LRA: z.number().default(11),
+  }).prefault({}),
+  render: z.object({
+    intro: z.boolean().default(false), // new videos open on the brand intro
+    outro: z.boolean().default(false), // and close on the end card; without it the video fades to black
   }).prefault({}),
   scriptsDir: z.string().default("~/Documents/Projects/FDE_Channel"),
 });
@@ -230,7 +234,8 @@ export type EditPlan = z.infer<typeof EditPlanSchema>;
 
 // ---------- the edit (edit.json): what the UI changes ----------
 
-export const CutReason = z.enum(["filler", "silence", "stumble", "false-start", "repeat", "adlib", "user"]);
+// handling: the camera was touched (a reach to the phone mid-take); found from the picture, not the words
+export const CutReason = z.enum(["filler", "silence", "stumble", "false-start", "repeat", "adlib", "user", "handling"]);
 export type CutReason = z.infer<typeof CutReason>;
 
 export const CutSchema = z.object({
@@ -290,8 +295,11 @@ export const EditSchema = z.object({
   takeGroups: z.array(TakeGroupSchema),
   overlays: z.array(OverlaySchema),
   chapters: z.array(z.object({ title: z.string(), anchorWordId: z.string() })),
-  intro: z.boolean().default(true),
-  outro: z.boolean().default(true),
+  intro: z.boolean().default(false),
+  outro: z.boolean().default(false),
+  // Picture holds the join pass found from motion: over these source ranges the picture freezes on the
+  // last clean frame while the audio plays on (a reach to stop the recording during the last word).
+  holds: z.array(z.object({ clipId: z.string(), start: z.number(), end: z.number() })).optional(),
   punchIn: z.boolean().optional(), // legacy switch, read as style.jumpCuts = "punch-in"
   style: z.lazy(() => EditStyleOverridesSchema).optional(), // this video's overrides of the channel style
 });
@@ -300,7 +308,9 @@ export type Edit = z.infer<typeof EditSchema>;
 /**
  * How hard the edit cuts. Fillers: "natural" cuts only stalls (≥ fillerMinMs) and keeps the short
  * "uh"s of normal speech, "all" cuts every filler, "keep" none. Stutters, restarts and false starts are
- * always cut. minSegmentMs drops a filler cut that would leave a sliver of video between two jumps.
+ * always cut. minSegmentMs resolves two cuts closer than this (a sliver of video between two jumps).
+ * Pauses longer than maxPauseMs are trimmed to pauseKeepMs (never for less than a 0.6 s saving).
+ * punchHoldMs: a punch-in framing holds at least this long before the next cut may switch it.
  * disfluencies: "natural" keeps a tiny stutter when cutting it would splice inside continuous speech,
  * "clean" cuts them anyway, "light" keeps every stutter (only false starts, corrections and asides go).
  * jumpCuts: "punch-in" alternates a zoom, "soft" dissolves softFrames across a cut inside one take.
@@ -309,8 +319,10 @@ const STYLE = {
   fillers: z.enum(["natural", "all", "keep"]),
   disfluencies: z.enum(["natural", "clean", "light"]),
   fillerMinMs: z.number().min(0),
-  maxPauseMs: z.number().min(100).max(3000), // the channel default is edit.maxPauseMs in the config
+  maxPauseMs: z.number().min(100).max(5000), // the channel default is edit.maxPauseMs in the config
+  pauseKeepMs: z.number().min(100).max(3000),
   minSegmentMs: z.number().min(0),
+  punchHoldMs: z.number().min(0),
   jumpCuts: z.enum(["soft", "punch-in", "none"]),
   softFrames: z.number().int().min(2).max(12),
 };
@@ -319,7 +331,9 @@ export const EditStyleSchema = z.object({
   disfluencies: STYLE.disfluencies.default("natural"),
   fillerMinMs: STYLE.fillerMinMs.default(400),
   maxPauseMs: STYLE.maxPauseMs.optional(),
-  minSegmentMs: STYLE.minSegmentMs.default(1200),
+  pauseKeepMs: STYLE.pauseKeepMs.default(700),
+  minSegmentMs: STYLE.minSegmentMs.default(3000),
+  punchHoldMs: STYLE.punchHoldMs.default(4000),
   jumpCuts: STYLE.jumpCuts.default("punch-in"),
   softFrames: STYLE.softFrames.default(4),
 });
@@ -347,6 +361,7 @@ export type Segment = {
   // the start of the cut word (lips closing for "but" at the end of "buy"), so it ends on a soft fade
   fadeInMs?: number;
   fadeOutMs?: number;
+  holdOut?: number; // source seconds: from here to the segment's end the picture holds this frame
 };
 
 export type PlacedOverlay = { overlayId: string; cueId: string; start: number; end: number }; // output seconds

@@ -11,7 +11,7 @@ const on = (e: Edit) => e.cuts.filter((c) => c.enabled).map((c) => c.id);
 
 describe("resolveStyle", () => {
   it("uses the channel defaults with this video's overrides on top", () => {
-    expect(resolveStyle(config)).toMatchObject({ fillers: "natural", disfluencies: "natural", fillerMinMs: 400, minSegmentMs: 1200, jumpCuts: "punch-in", softFrames: 4, maxPauseMs: config.edit.maxPauseMs });
+    expect(resolveStyle(config)).toMatchObject({ fillers: "natural", disfluencies: "natural", fillerMinMs: 400, pauseKeepMs: 700, minSegmentMs: 3000, punchHoldMs: 4000, jumpCuts: "punch-in", softFrames: 4, maxPauseMs: 1500 });
     expect(resolveStyle(config, editOf([], { style: { fillers: "all", maxPauseMs: 800 } }))).toMatchObject({ fillers: "all", maxPauseMs: 800, jumpCuts: "punch-in" });
     expect(resolveStyle(config, editOf([], { punchIn: true })).jumpCuts).toBe("punch-in"); // the old switch still works
   });

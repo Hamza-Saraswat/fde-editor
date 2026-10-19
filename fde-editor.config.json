@@ -1,11 +1,12 @@
 {
   "output": { "width": 2560, "height": 1440, "fps": 30 },
   "edit": {
-    "preMs": 80, "postMs": 120, "maxPauseMs": 500, "fadeMs": 30, "fillerGapMs": 250,
-    "style": { "fillers": "natural", "disfluencies": "natural", "fillerMinMs": 400, "minSegmentMs": 1200, "jumpCuts": "punch-in", "softFrames": 4 }
+    "preMs": 80, "postMs": 120, "maxPauseMs": 1500, "fadeMs": 30, "fillerGapMs": 250,
+    "style": { "fillers": "natural", "disfluencies": "natural", "fillerMinMs": 400, "pauseKeepMs": 700, "minSegmentMs": 3000, "punchHoldMs": 4000, "jumpCuts": "punch-in", "softFrames": 4 }
   },
   "transcription": { "engine": "local", "localEngine": "parakeet", "localModel": "medium.en" },
   "claude": { "model": "opus", "maxTurns": 40 },
+  "render": { "intro": false, "outro": false },
   "loudness": { "I": -14, "TP": -1.5, "LRA": 11 },
   "scriptsDir": "~/Documents/Projects/FDE_Channel"
 }

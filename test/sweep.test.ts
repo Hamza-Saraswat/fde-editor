@@ -106,7 +106,8 @@ describe("listen-back placement on a real take", () => {
     const tr: Transcript = { engine: "t", model: "t", words: ws, silences: [], fillers: [] };
     const env = envOf(3, [[0.5, 0.84, 0.3], [2.32, 2.45, 0.25], [2.5, 2.9, 0.3]]);
     const edit = editOf();
-    const tl = buildTimeline(edit, tr, [clip], ConfigSchema.parse({}));
+    const tight = ConfigSchema.parse({ edit: { maxPauseMs: 400, style: { pauseKeepMs: 400 } } }); // pause trimmed to 0.4 s
+    const tl = buildTimeline(edit, tr, [clip], tight);
     expect(tl.segments).toHaveLength(2);
     const join = tl.segments[1]!.outStart;
     const { cuts } = planSweepCuts([{ start: join - 0.08, end: join + 0.16, prevEnd: join - 0.2, nextStart: join + 0.22 }], tl, tr, edit, new Map([["c1", env]]));

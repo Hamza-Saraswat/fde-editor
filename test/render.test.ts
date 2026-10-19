@@ -93,6 +93,17 @@ describe("render arg builders", () => {
     expect(zoomSignature({ zoom: 1.1 }, "left")).toBe(":zoom1.1@left");
   });
 
+  it("a picture hold keeps the frame count and freezes the frames after holdOut", () => {
+    const tl = makeTimeline([[0.5, 1.5], [2, 3.2]]);
+    tl.segments[1]!.holdOut = 2.8;
+    const pieces = planVideoPieces(tl);
+    expect(pieces[1]).toMatchObject({ kind: "seg", frames: 36, live: 24 });
+    const profile = resolveProfile("final", { width: 2560, height: 1440 }, 30);
+    const a = videoSegmentArgs("/s.mp4", { start: 2, frames: 36, live: 24 }, profile, "/o.mp4");
+    expect(a[a.indexOf("-vf") + 1]).toMatch(/trim=end_frame=24,tpad=stop=-1:stop_mode=clone$/);
+    expect(a[a.indexOf("-frames:v") + 1]).toBe("36");
+  });
+
   it("soft joins become centred dissolves without changing the frame total", () => {
     const tl = makeTimeline([[0.5, 1.5], [2, 3.2], [4, 5]]);
     tl.segments[1]!.softIn = 4;

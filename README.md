@@ -11,7 +11,7 @@ it. fde-editor matches the recording to the script, and then:
   composition in the channel's brand, timed to the spoken words and rendered as a transparent overlay.
 - **You review everything in one screen.** Undo any cut, swap takes, nudge or flip graphics, attach
   and crop screenshots.
-- **ffmpeg renders the final MP4** with frame-accurate cuts, graphics, intro and end card, and loudness
+- **ffmpeg renders the final MP4** with frame-accurate cuts, graphics, an optional intro and end card, and loudness
   levelled to −14 LUFS. It also writes YouTube chapters, an SRT captions file, and 2–3 captioned
   clips for X.
 
@@ -77,14 +77,23 @@ applies straight away, with no new Claude plan.
 | Setting | Default | What it does |
 |---|---|---|
 | Ums and uhs | Natural | Keeps the short "uh" of fluent speech and cuts only stalls. Cut all and Keep all are the alternatives. |
+| Stutters | Natural | Keeps a small stutter or a short aside when cutting it would splice inside running speech. Clean cuts them anyway; Light keeps every stutter. |
 | Cut stalls longer than | 400 ms | The length at which a filler counts as a stall. |
-| Longest pause kept | 500 ms | Pauses longer than this are shortened to it. |
-| Avoid slivers shorter than | 1.2 s | Drops a filler cut that would leave a scrap of video between two jumps. |
-| Jump cuts | Soft | A 4-frame dissolve across each cut inside one take. Punch-in zooms in about 10% on every other section, for camera footage only, since it crops a screen recording. Hard is a plain cut. |
+| Trim pauses longer than | 1.5 s | Only dead air is trimmed. Shorter pauses are your timing and stay, so a cut never saves less than 0.6 s. |
+| Trim them down to | 0.7 s | What is left of a trimmed pause. |
+| Keep cuts at least this far apart | 3 s | Two cuts closer than this leave a sliver between two jumps: the smaller stutter gives way, or the two merge. |
+| Jump cuts | Punch-in | A cut switches between the normal and a ~10% closer framing. Hard is a plain cut; Dissolve is a 4-frame dissolve. |
+| Hold each framing at least | 4 s | A cut sooner than this after the last framing change keeps the framing, so the picture never pumps in and out. |
 
-Stutters, restarts and false starts are always cut. A cut you switch on or off yourself is never changed
-by the style. The Overview also shows cuts per minute and pieces under 1 s, so you can keep videos
-consistent.
+Restarts, false starts and corrections are cut. A cut that leaves running speech keeps the restart's own
+pause, so the restart lands like a new sentence. A cut never removes the opening of the next sentence or
+leaves a word said on both sides of it. A cut you switch on or off yourself is never changed by the style.
+The Overview shows cuts per minute, pause trims and framing changes, so you can keep videos consistent.
+
+**Camera handling.** The editor measures how much the picture moves. A reach to the phone in a pause
+is cut ("Camera touched" in the cut list, with any word said during it). A reach to stop the recording
+during the last word freezes the picture on the last clean frame while the word finishes. Videos end
+with a half-second fade instead of the brand intro and end card, which are off by default (Output tab).
 
 ## Picture fixes
 

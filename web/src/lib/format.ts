@@ -30,7 +30,7 @@ export function timeAgo(iso: string | undefined, now = Date.now()): string {
   return formatDate(iso);
 }
 
-export const REASONS: CutReason[] = ["filler", "silence", "stumble", "false-start", "repeat", "adlib", "user"];
+export const REASONS: CutReason[] = ["filler", "silence", "stumble", "false-start", "repeat", "adlib", "handling", "user"];
 
 export const REASON_LABEL: Record<CutReason | "take" | "pause", string> = {
   filler: "Filler",
@@ -39,12 +39,14 @@ export const REASON_LABEL: Record<CutReason | "take" | "pause", string> = {
   "false-start": "False start",
   repeat: "Repeat",
   adlib: "Ad-lib",
+  handling: "Camera touched",
   user: "Your cut",
   take: "Other take",
   pause: "Pause tightened",
 };
 
 /** CSS colour for a cut reason (theme variables live in styles.css). */
-export const reasonColor = (r: CutReason | "take" | "pause") => (r === "pause" ? "var(--color-r-silence)" : `var(--color-r-${r})`);
+export const reasonColor = (r: CutReason | "take" | "pause") =>
+  r === "pause" || r === "handling" ? "var(--color-r-silence)" : `var(--color-r-${r})`;
 
 export const BY_LABEL = { auto: "Detected automatically", claude: "Claude's plan", user: "You" } as const;
